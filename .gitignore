@@ -4,3 +4,8 @@
 .env.local
 node_modules/
 package-lock.json
+
+# Local data and SQLite databases (personal/local state)
+data/
+*.sqlite
+*.sqlite3

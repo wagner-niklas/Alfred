@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -10,10 +12,9 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { ThreadList } from "@/components/alfred/thread-list";
 
-export function ThreadListSidebar(
-  props: React.ComponentProps<typeof Sidebar>
+export function GraphSidebar(
+  props: React.ComponentProps<typeof Sidebar>,
 ) {
   const pathname = usePathname();
 
@@ -58,8 +59,6 @@ export function ThreadListSidebar(
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-
-        <ThreadList />
       </SidebarContent>
 
       <SidebarRail />

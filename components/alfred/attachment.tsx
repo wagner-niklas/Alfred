@@ -251,7 +251,6 @@ export const ComposerAddAttachment: FC = () => {
   const unsupportedTooltip =
     "SpeechRecognition is not supported in this browser. Try using Chrome, Edge, or Safari.";
 
-  const supportKnown = speechSupported !== null;
   const isSupported = speechSupported === true;
   const isUnsupported = speechSupported === false;
 
