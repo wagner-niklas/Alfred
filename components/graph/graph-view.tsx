@@ -22,12 +22,24 @@
  *    - `GraphView` composes everything together, pre-resolves links via
  *      `graph-core` helpers, and is what the `/graph` page renders.
  *
+ * 4) **User interactions**
+ *    - Scroll over the graph to zoom in/out (or use the + / - buttons).
+ *    - Drag on empty background to pan the graph.
+ *    - Drag a node to reposition it; click a node or relationship to inspect.
+ *    - Use the top-right "Show/Hide controls" toggle to show or collapse the
+ *      right-hand side panel.
+ *
  * All physics constants, types, and small helpers live in `graph-core.ts` so
  * that this file stays focused on React concerns (state, effects, and layout).
  */
 
 import * as React from "react";
-import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
+import {
+  AnimatePresence,
+  LazyMotion,
+  MotionConfig,
+  domAnimation,
+} from "motion/react";
 import * as m from "motion/react-m";
 import {
   BOUNDS_MARGIN,
@@ -444,6 +456,46 @@ function GraphCanvas({
   onPointerUp,
   onNodePointerDown,
 }: GraphCanvasProps) {
+  const [zoom, setZoom] = React.useState(1);
+
+  const [pan, setPan] = React.useState({ x: 0, y: 0 });
+  const panStateRef = React.useRef<{
+    pointerStartX: number;
+    pointerStartY: number;
+    panStartX: number;
+    panStartY: number;
+  } | null>(null);
+
+  const MIN_ZOOM = 0.5;
+  const MAX_ZOOM = 2.5;
+  const ZOOM_STEP = 0.2;
+
+  const clampZoom = React.useCallback(
+    (value: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value)),
+    [],
+  );
+
+  const handleWheel = React.useCallback(
+    (event: React.WheelEvent<SVGSVGElement>) => {
+      event.preventDefault();
+      const direction = Math.sign(event.deltaY);
+      setZoom((previous) =>
+        clampZoom(previous + (direction > 0 ? -ZOOM_STEP : ZOOM_STEP)),
+      );
+    },
+    [clampZoom],
+  );
+
+  const handleZoomIn = React.useCallback(() => {
+    setZoom((previous) => clampZoom(previous + ZOOM_STEP));
+  }, [clampZoom]);
+
+  const handleZoomOut = React.useCallback(() => {
+    setZoom((previous) => clampZoom(previous - ZOOM_STEP));
+  }, [clampZoom]);
+
+  const centerX = WIDTH / 2;
+  const centerY = HEIGHT / 2;
   const handleBackgroundClick = React.useCallback(
     (event: React.MouseEvent<SVGSVGElement>) => {
       // Only clear selection if the user clicked directly on the SVG
@@ -455,16 +507,75 @@ function GraphCanvas({
     [setSelected],
   );
 
+  const handleBackgroundPointerDown = React.useCallback(
+    (event: React.PointerEvent<SVGSVGElement>) => {
+      // Only start panning when clicking on the empty background with the
+      // primary (usually left) mouse button.
+      if (event.button !== 0) return;
+      if (event.currentTarget !== event.target) return;
+
+      const svg = svgRef.current;
+      if (!svg) return;
+
+      panStateRef.current = {
+        pointerStartX: event.clientX,
+        pointerStartY: event.clientY,
+        panStartX: pan.x,
+        panStartY: pan.y,
+      };
+
+      (svg as Element).setPointerCapture?.(event.pointerId);
+    },
+    [pan.x, pan.y, svgRef],
+  );
+
+  const handlePointerMoveInternal = React.useCallback(
+    (event: React.PointerEvent<SVGSVGElement>) => {
+      const state = panStateRef.current;
+      const svg = svgRef.current;
+
+      if (state && svg) {
+        const rect = svg.getBoundingClientRect();
+
+        const dxPx = event.clientX - state.pointerStartX;
+        const dyPx = event.clientY - state.pointerStartY;
+
+        const dxUnits = (dxPx / rect.width) * WIDTH;
+        const dyUnits = (dyPx / rect.height) * HEIGHT;
+
+        setPan({
+          x: state.panStartX + dxUnits,
+          y: state.panStartY + dyUnits,
+        });
+      }
+
+      // Always forward pointer movement to the simulation so node dragging
+      // continues to work.
+      onPointerMove(event);
+    },
+    [onPointerMove, svgRef],
+  );
+
+  const handlePointerUpInternal = React.useCallback(
+    (event: React.PointerEvent<SVGSVGElement>) => {
+      panStateRef.current = null;
+      onPointerUp();
+    },
+    [onPointerUp],
+  );
+
   return (
-    <div className="flex-1 overflow-auto rounded-md border bg-muted/40">
+    <div className="relative h-full overflow-auto rounded-md border bg-muted/40">
       <svg
         ref={svgRef}
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="h-full w-full touch-none"
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerLeave={onPointerUp}
+        onPointerDown={handleBackgroundPointerDown}
+        onPointerMove={handlePointerMoveInternal}
+        onPointerUp={handlePointerUpInternal}
+        onPointerLeave={handlePointerUpInternal}
         onClick={handleBackgroundClick}
+        onWheel={handleWheel}
       >
         <defs>
           <marker
@@ -485,7 +596,10 @@ function GraphCanvas({
           </filter>
         </defs>
 
-        {resolvedLinks.map(({ link, source, target }) => {
+        <g
+          transform={`translate(${pan.x} ${pan.y}) translate(${centerX} ${centerY}) scale(${zoom}) translate(${-centerX} ${-centerY})`}
+        >
+          {resolvedLinks.map(({ link, source, target }) => {
           const isSelectedLink =
             selected?.type === "link" &&
             String(selected.link.id) === String(link.id);
@@ -548,7 +662,7 @@ function GraphCanvas({
           );
         })}
 
-        {nodes.map((node) => {
+          {nodes.map((node) => {
           const isSelectedNode =
             selected?.type === "node" &&
             String(selected.node.id) === String(node.id);
@@ -572,7 +686,26 @@ function GraphCanvas({
             </g>
           );
         })}
+        </g>
       </svg>
+
+      {/* Zoom controls in the bottom-right corner of the graph canvas */}
+      <div className="pointer-events-none absolute bottom-3 right-3 flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={handleZoomIn}
+          className="pointer-events-auto inline-flex h-7 w-7 items-center justify-center rounded border bg-background text-xs font-medium shadow-sm hover:bg-muted"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          onClick={handleZoomOut}
+          className="pointer-events-auto inline-flex h-7 w-7 items-center justify-center rounded border bg-background text-xs font-medium shadow-sm hover:bg-muted"
+        >
+          -
+        </button>
+      </div>
     </div>
   );
 }
@@ -805,6 +938,7 @@ export function GraphView() {
 
   const [searchTerm, setSearchTerm] = React.useState("");
   const [selected, setSelected] = React.useState<SelectedEntity | null>(null);
+  const [isSidePanelVisible, setIsSidePanelVisible] = React.useState(true);
 
   const {
     nodes,
@@ -894,11 +1028,25 @@ export function GraphView() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
           >
-            <h1 className="text-lg font-semibold">Knowledge Store</h1>
-            <p className="text-sm text-muted-foreground">
-              This view shows a subset of nodes and relationships from your
-              Neo4j database.
-            </p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h1 className="text-lg font-semibold">Knowledge Store</h1>
+                <p className="text-sm text-muted-foreground">
+                  This view shows a subset of nodes and relationships from your
+                  Neo4j database.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setIsSidePanelVisible((previous) => !previous)
+                }
+                className="inline-flex items-center justify-center whitespace-nowrap rounded border bg-background px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
+              >
+                {isSidePanelVisible ? "Hide controls" : "Show controls"}
+              </button>
+            </div>
           </m.div>
 
           <m.div
@@ -906,37 +1054,53 @@ export function GraphView() {
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05, duration: 0.25, ease: "easeOut" }}
+            layout
           >
-            <GraphCanvas
-              nodes={nodes}
-              resolvedLinks={resolvedLinks}
-              svgRef={svgRef}
-              draggedId={draggedId}
-              selected={selected}
-              setSelected={setSelected}
-              labelColorMap={labelColorMap}
-              normalizedSearch={normalizedSearch}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onNodePointerDown={handleNodePointerDown}
-            />
-
-            <GraphSidePanel
-              data={data}
-              nodes={nodes}
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-              hasSearch={hasSearch}
-              searchMatches={searchMatches}
-              cypherQuery={cypherQuery}
-              cypherError={cypherError}
-              setCypherQuery={setCypherQuery}
-              onRunQuery={handleRunCypherClick}
-              onReset={handleResetClick}
-              resolvedLinks={resolvedLinks}
-              selected={selected}
-              setSelected={setSelected}
-            />
+            <m.div layout className="flex-1 min-w-0">
+              <GraphCanvas
+                nodes={nodes}
+                resolvedLinks={resolvedLinks}
+                svgRef={svgRef}
+                draggedId={draggedId}
+                selected={selected}
+                setSelected={setSelected}
+                labelColorMap={labelColorMap}
+                normalizedSearch={normalizedSearch}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onNodePointerDown={handleNodePointerDown}
+              />
+            </m.div>
+            <AnimatePresence initial={false}>
+              {isSidePanelVisible && (
+                <m.div
+                  key="graph-side-panel"
+                  layout
+                  initial={{ x: 24, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: 24, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="h-full"
+                >
+                  <GraphSidePanel
+                    data={data}
+                    nodes={nodes}
+                    searchTerm={searchTerm}
+                    setSearchTerm={setSearchTerm}
+                    hasSearch={hasSearch}
+                    searchMatches={searchMatches}
+                    cypherQuery={cypherQuery}
+                    cypherError={cypherError}
+                    setCypherQuery={setCypherQuery}
+                    onRunQuery={handleRunCypherClick}
+                    onReset={handleResetClick}
+                    resolvedLinks={resolvedLinks}
+                    selected={selected}
+                    setSelected={setSelected}
+                  />
+                </m.div>
+              )}
+            </AnimatePresence>
           </m.div>
         </m.div>
       </MotionConfig>
