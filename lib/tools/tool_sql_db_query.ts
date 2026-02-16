@@ -10,14 +10,14 @@ const ensureSelectQuery = (sql: string) => {
 
   const statements = trimmed.split(";").filter((s) => s.trim().length > 0);
   if (statements.length > 1) {
-    throw new Error("Only a single SELECT statement without additional statements is allowed.");
+    throw new Error("Only a single SELECT statement without additional statements is allowed.");  
   }
 
   const statement = statements[0];
 
   const isSelectLike =
-    /^\s*select\b/i.test(statement) ||
-    /^\s*with\b/i.test(statement);
+    /^\s*select\b/i.test(statement) || // direct SELECT
+    /^\s*with\b/i.test(statement);     // CTE: WITH ... SELECT ...
 
   if (!isSelectLike) {
     throw new Error(
@@ -25,6 +25,7 @@ const ensureSelectQuery = (sql: string) => {
     );
   }
 
+  // Absicherung gegen Schreib-/DDL-Keywords
   const forbiddenKeywords = [
     /\binsert\b/i,
     /\bupdate\b/i,
@@ -40,38 +41,46 @@ const ensureSelectQuery = (sql: string) => {
 
   if (forbiddenKeywords.some((re) => re.test(statement))) {
     throw new Error(
-      "Write or DDL operations (INSERT, UPDATE, DELETE, MERGE, CREATE, DROP, ...) are not allowed."
+      "Write or DDL operations (INSERT, UPDATE, DELETE, MERGE, CREATE, DROP, etc.) are not allowed."
     );
   }
 
   return statement;
 };
 
-const qualifyTables = (sql: string) =>
-  sql.replace(
+const qualifyTables = (sql: string) => {
+  const cteMatch = sql.match(/^\s*with\s+([\s\S]+?)\)\s*select\b/i);
+  let ctes: string[] = [];
+  if (cteMatch) {
+    const cteBlock = cteMatch[1];
+    ctes = Array.from(cteBlock.matchAll(/(\w+)\s+as\s*\(/gi)).map(m => m[1].toLowerCase());
+  }
+
+  return sql.replace(
     /\b(from|join)\s+([`"]?)([a-z0-9_]+)\2\b/gi,
     (match, keyword, quote, table) => {
-      if (table.includes(".")) return match;
+      if (table.includes(".") || ctes.includes(table.toLowerCase())) return match;
       return `${keyword} \`${DATABRICKS_CATALOG}\`.\`${DATABRICKS_SCHEMA}\`.${table}`;
     }
   );
+};
 
 export const tool_sql_db_query = () =>
   tool({
     name: "tool_sql_db_query",
-    description: "Execute a SELECT SQL query on the database and returns results.",
+    description: "Executes a read-only SQL query on the database and returns the results.",
     inputSchema: z.object({
       ent_instructions: z
         .string()
         .describe(
-          "Very brief instructions on how specific keywords or phrases from the user question should be handled when creating the SQL."
+          "Very short instructions or hints on how certain keywords or phrases from the user question should be handled when creating the SQL query."
         ),
       sql_reasoning_steps: z
         .string()
         .describe(
-          "Very brief description of the reasoning steps for constructing the SQL query (e.g., filters, grouping, sorting)."
+          "Very short description of the reasoning and logical steps used to construct the SQL query (e.g., filters, grouping, sorting)."
         ),
-      sql_query: z.string().describe("The SQL Query."),
+      sql_query: z.string().describe("The SQL query to execute."),
     }),
     execute: async ({ sql_query }) => {
       const sql = qualifyTables(ensureSelectQuery(sql_query));

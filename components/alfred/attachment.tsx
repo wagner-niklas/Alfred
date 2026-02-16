@@ -14,7 +14,6 @@ import { useShallow } from "zustand/shallow";
 import {
   Tooltip,
   TooltipContent,
-  TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
   Dialog,

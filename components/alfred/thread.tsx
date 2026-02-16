@@ -43,7 +43,7 @@ export const Thread: FC = () => {
         <ThreadPrimitive.Root
           className="aui-root aui-thread-root @container flex h-full flex-col bg-background"
           style={{
-            ["--thread-max-width" as string]: "44rem",
+            ["--thread-max-width" as string]: "48rem",
           }}
         >
           <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 overflow-x-auto overflow-y-auto px-4">
@@ -236,10 +236,13 @@ type ComposerProps = {
 };
 
 const Composer: FC<ComposerProps> = ({ wrapperClassName, variant = "default" }) => {
+  const isDefault = variant === "default";
+
   return (
     <div
       className={cn(
-        "aui-composer-wrapper sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 overflow-visible rounded-t-3xl bg-background pb-4 md:pb-6",
+        "aui-composer-wrapper sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col overflow-visible rounded-t-3xl bg-background",
+        isDefault ? "gap-2 pb-2 md:pb-3" : "gap-4 pb-4 md:pb-6",
         wrapperClassName
       )}
     >
@@ -248,21 +251,23 @@ const Composer: FC<ComposerProps> = ({ wrapperClassName, variant = "default" }) 
         <ComposerAttachments />
         <ComposerPrimitive.Input
           placeholder="Ask me anything ..."
-          className="aui-composer-input mb-1 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pt-1.5 pb-3 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-0"
+          className={cn(
+            "aui-composer-input mb-1 w-full resize-none bg-transparent px-3.5 pt-1.5 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-0",
+            variant === "default" ? "min-h-8" : "min-h-16 max-h-32"
+          )}
           rows={1}
           autoFocus
           aria-label="Message input"
         />
         <ComposerAction />
-
       </ComposerPrimitive.Root>
 
-              {/* AI Disclaimer nur für default */}
-        {variant === "default" && (
-          <div className="aui-composer-disclaimer text-xs text-muted-foreground text-center mx-auto">
-            AI can make mistakes. Please verify critical information independently.
-          </div>
-        )}
+      {/* AI Disclaimer nur für default */}
+      {variant === "default" && (
+        <div className="aui-composer-disclaimer text-xs text-muted-foreground text-center mx-auto">
+          AI can make mistakes. Please verify critical information independently.
+        </div>
+      )}
     </div>
   );
 };
