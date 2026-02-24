@@ -1,4 +1,4 @@
-KG_SCHEMA_CONCEPTS_FILE: data/concepts.yaml
+KG_SCHEMA_CONCEPTS_FILE: concepts/concepts.yaml
 OPENAI_EMBEDDING_MODEL: text-embedding-3-large  # text-embedding-3-small, text-embedding-3-large
 TABLE_VECTOR_INDEX_NAME: table_vector_index
 TABLE_VECTOR_INDEX_INPUT_PROPERTIES:  # Indicates what properties to embed as part of vector index

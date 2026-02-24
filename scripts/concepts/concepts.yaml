@@ -1,0 +1,76 @@
+# ==========================================
+#           Concepts Definition
+# ==========================================
+concepts:
+  AccountIdentifier:
+    description: Unique identifier of a bank account
+    sample_value: 34
+  BankIdentifier:
+    description: Unique identifier of a bank
+    sample_value: YZ
+  CustomerIdentifier:
+    description: Unique identifier of a bank customer
+    sample_value: 23
+  DistrictIdentifier:
+    description: Unique identifier of a district
+    sample_value: 1
+  DerivedGender:
+    description: Gender of the client (male or female), derived from birthdate
+    sample: M
+  TransactionCategory:
+    description: Category of a transaction (aka k symbol)
+    sample_value: SIPO
+  MonetaryValue:
+    description: Monetary value (in Czech Koruna), related to both transaction amount and balance
+    sample_value: 1000
+
+
+# ==========================================
+#           Concepts Relationships
+# ==========================================
+concept_relationships:
+  - from: CustomerIdentifier
+    to: AccountIdentifier
+    type: IS_ASSOCIATED_WITH
+    description: Every banking customer is associated with (at least) one bank account
+  - from: CustomerIdentifier
+    to: DerivedGender
+    type: IS_OF_GENDER
+    description: Every banking customer has a gender derived from birthdate
+  - from: TransactionCategory
+    to: MonetaryValue
+    type: HAS_MONETARY_VALUE_WORTH
+    description: Every transaction category is associated with some monetary value
+  - from: TransactionCategory
+    to: AccountIdentifier
+    type: IS_ASSOCIATED_WITH
+    description: Every transaction category is associated with some bank account
+
+
+# ==========================================
+#      Field Column to Concept Mapping
+# ==========================================
+# Concept mapping for columns also depends on the table it originates from
+# Only need to list for those where columns are specially associated with pre-defined concepts
+column_concept_mapping:
+  global:  # Exist in multiple tables and always represents the same concept
+    account_id: AccountIdentifier
+    amount: MonetaryValue
+    birth_number: Date
+    bank: BankIdentifier
+    balance: MonetaryValue
+    CustomerID: CustomerIdentifier
+    date: Date
+    district_id: DistrictIdentifier
+    k_symbol: TransactionCategory
+  card:
+    issued: Date
+  client:
+    birth_number: DerivedGender
+  district:
+    A1: DistrictIdentifier
+  order:
+    bank_to: BankIdentifier
+    account_to: AccountIdentifier
+  trans:
+    account: AccountIdentifier

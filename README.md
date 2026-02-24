@@ -29,7 +29,7 @@ Alfred also includes a semantic knowledge store / graph explorer for navigating 
 
 
 
-## Use Case: Domain Adoption with Semantic Knowledge Graphs
+## Domain Adoption with Semantic Knowledge Graphs
 
 Alfred helps teams adopt data assistants by making domain knowledge explicit in a semantic graph. Users can:
 
