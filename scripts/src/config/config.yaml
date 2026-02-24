@@ -1,0 +1,19 @@
+KG_SCHEMA_CONCEPTS_FILE: data/concepts.yaml
+OPENAI_EMBEDDING_MODEL: text-embedding-3-large  # text-embedding-3-small, text-embedding-3-large
+TABLE_VECTOR_INDEX_NAME: table_vector_index
+TABLE_VECTOR_INDEX_INPUT_PROPERTIES:  # Indicates what properties to embed as part of vector index
+  - title
+  - description
+  - remarks
+TABLE_FULLTEXT_INDEX_NAME: table_fulltext_index
+TABLE_FULLTEXT_INPUT_PROPERTIES:
+  - title
+  - description
+TABLE_EMBEDDING_PROPERTY_NAME: table_embedding
+EMBEDDING_DIMENSIONS: 3072  # match with text-embedding-3-large
+
+# Model parameters
+LLM_MODEL: gpt-4o-mini
+TEMPERATURE: 0
+SEED: 42
+TOP_K: 3

@@ -1,0 +1,12 @@
+services:
+  nextjs:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: alfred-app
+
+    ports:
+      - "8081:3000"
+    environment:
+      NODE_ENV: production

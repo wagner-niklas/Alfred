@@ -9,3 +9,11 @@ package-lock.json
 data/
 *.sqlite
 *.sqlite3
+scripts/.env
+scripts/uv.lock
+
+# Python cache and virtual environment
+__pycache__/
+venv/
+.venv/
+scripts/backup/

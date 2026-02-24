@@ -66,12 +66,13 @@ Alfred helps teams adopt data assistants by making domain knowledge explicit in 
 
 
 ```bash
+cd alfred-app
 npm install
 ```
 
-## Environment Setup
+## Environment Setup for Alfred
 
-Create a `.env.local` file in the project root with:
+Create a `.env.local` file in the alfred-app folder with:
 
 ```env
 AZURE_OPENAI_API_KEY=your_api_key
@@ -91,9 +92,51 @@ NEO4J_USER=neo4j
 NEO4J_PASSWORD=your_password
 ```
 
+## Environment Setup for knowledge graph construction
+
+``` env
+AZURE_OPENAI_BASE_URL=...
+AZURE_OPENAI_API_VERSION=2024-10-21
+AZURE_OPENAI_API_KEY=...
+
+NEO4J_BOLT_URL=bolt://localhost:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=password
+
+DATABRICKS_HOST=....databricks.com
+DATABRICKS_TOKEN=your_personal_access_token
+DATABRICKS_WAREHOUSE_ID=your_warehouse_id
+DATABRICKS_CATALOG=your_databricks_catalog
+DATABRICKS_SCHEMA=your_databricks_schema
+```
+
+## Working with the Scripts & Notebooks
+
+If you want to try Alfred with a concrete Databricks dataset and a generated knowledge graph, there are a couple of helper notebooks in the `scripts/` folder.
+
+- `scripts/create_databricks_schema.ipynb`
+  - Use this to **initialize sample data and schema in Databricks**.
+  - This notebook is meant to be **run directly in your Databricks workspace** (e.g. imported into Databricks and executed from there), since it relies on Databricks runtime and connectivity.
+
+- `scripts/create_graph_from_databricks.ipynb`
+  - Use this to **build the semantic knowledge graph** from the data stored in Databricks and push it into Neo4j.
+  - This is also designed to be **run in a Databricks environment** where it can access your Databricks tables and talk to Neo4j.
+
+In a typical flow you would:
+
+1. Configure your Databricks and Neo4j credentials via environment variables as described above.
+2. Open `create_databricks_schema.ipynb` in Databricks and run it to set up the sample schema and data.
+3. Open `create_graph_from_databricks.ipynb` in Databricks and run it to materialize the knowledge graph in Neo4j.
+4. Start the Alfred app locally and explore the graph and data through the UI and chat interface.
+
+These notebooks are intentionally simple and are meant as a starting point you can fork and adapt to your own schemas, business concepts, and graph modeling conventions.
+
+The core domain **concepts** used in the example knowledge graph live in `scripts/data/concepts.yaml` (with a big acknowledgement to *Kenneth Leungh* for the original concept definitions). If you want to bring your own domain, you can start by tweaking this file – adding, renaming, or removing concepts – and then re-running the graph creation notebook to see how your changes show up in Neo4j and in Alfred's UI.
+
 ## Running Locally
 
 ```bash
+cd alfred-app
 npm run dev
 ```
 
@@ -102,11 +145,12 @@ The application will be available at `http://localhost:3000`.
 ## Building for Production
 
 ```bash
+cd alfred-app
 npm run build
 npm start
 ```
 
-## Project Structure
+## Alfred-App Project Structure
 
 - `app/` - Next.js application and API routes
 - `components/` - React components for UI and assistant-ui interface
@@ -117,7 +161,7 @@ npm start
 
 Alfred exposes its main data access paths as **tools** under `lib/tools/`. These tools are wired into the assistant runtime via the Vercel AI SDK and Assistant UI so the model can call them directly.
 
-### Databricks (SQL) tool
+### Databricks (SQL) tools
 
 - Implementation: `lib/tools/tool_sql_db_query.ts`
 - Environment variables:
