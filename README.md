@@ -5,7 +5,7 @@
 
 An open, inspectable AI data assistant for working with Agent Skills, semantic Knowledge Graphs and structured domain data.
 
-![App](./demo/app.png)
+![App](./demo/app.gif)
 
 Most production-grade data assistants today are **not open source** and expose only a narrow text box on top of a proprietary stack. This creates three concrete problems:
 
