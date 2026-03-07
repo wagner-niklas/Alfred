@@ -42,14 +42,14 @@ export async function POST(req: Request) {
   try {
     // 1) Use the Neo4j tool to fetch relevant schema / knowledge-store context
     const neo4jTool = tool_neo4j_query();
-    // TypeScript expects two arguments for .execute(input, options), so we
-    // pass an explicit empty options object as the second parameter.
+    // We call the tool directly with its input payload; ToolCallOptions are
+    // only needed when the SDK invokes tools on behalf of a model.
     const neo4jResult = await neo4jTool.execute(
       {
         query: prompt,
         top_k: 3,
       },
-      {},
+      undefined as any,
     );
 
     // 2) Ask the LLM to rewrite the user's prompt using the retrieved context.
