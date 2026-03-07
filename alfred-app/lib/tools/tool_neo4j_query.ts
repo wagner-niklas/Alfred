@@ -67,19 +67,21 @@ export const tool_neo4j_query = () =>
   tool({
     name: "tool_neo4j_query",
     description:
-      "Given a natural language query about the SQL database schema, retrieve the most relevant tables from the Neo4j knowledge graph using embeddings + Cypher and return rich table/column/concept context.",
+      "Queries a knowledge graph that contains structured metadata and relationships about the database, such as tables, columns, and their connections.",
     inputSchema: z.object({
       query: z
         .string()
         .describe(
-          "Natural language query about the SQL tables/schema. The tool will compute an embedding, run a vector search over Table nodes in Neo4j, and then execute a standardized Cypher retrieval query to return table, column, concept, and related column metadata. This assumes that table embeddings, a vector index, and fulltext index have been created in Neo4j as in the scripts/graph_build_and_query_20250521.ipynb notebook.",
+          "Natural language question used to retrieve relevant subinformation about database structures, entities, or relationships from the knowledge graph."
         ),
       top_k: z
         .number()
         .int()
         .positive()
         .default(3)
-        .describe("Number of top similar tables to retrieve in table_query mode."),
+        .describe(
+          "Maximum number of relevant database entities or results to return from the knowledge graph."
+        ),
     }),
     execute: async ({ query, top_k = 3 }) => {
       const session = getSession();
