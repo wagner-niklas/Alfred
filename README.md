@@ -3,7 +3,7 @@
 [![Knowledge Graph](https://img.shields.io/badge/-Knowledge%20Graph-38a169?style=flat-square)](#domain-adoption-with-semantic-knowledge-graphs)
 [![Text-to-SQL](https://img.shields.io/badge/-Text--to--SQL-ed8936?style=flat-square)](#features)
 
-An open, inspectable AI data assistant for working with Agent Skills, semantic Knowledge Graphs and structured domain data.
+An open, inspectable AI data assistant for working with Agent Skills, semantic knowledge graphs and structured domain data.
 
 ![App](./demo/app.gif)
 
@@ -29,8 +29,6 @@ It uses natural language understanding, multi source data querying, and reasonin
 Alfred also includes a semantic knowledge store / graph explorer for navigating the domain model and relationships:
 
 ![Knowledge Store graph view](./demo/app-knowledge-store.png)
-
-
 
 ## Domain Adoption with Semantic Knowledge Graphs
 
@@ -72,11 +70,14 @@ npm install
 
 ## Environment Setup for Alfred
 
-Create a `.env.local` file under the alfred-app directory with:
+Two .env files are necessary for 1. the alfred-app itself and for the creation of the neo4j graph.
+Create both a `.env.local` file under the alfred-app directory and a ```.env``` file that is placed in Alfred’s main directory with:
 
 ```env
+# Azure
 AZURE_OPENAI_API_KEY=your_api_key
 AZURE_OPENAI_BASE_URL=https://...
+AZURE_API_VERSION=yyyy-MM-dd
 AZURE_OPENAI_MODEL=gpt-...
 
 # Databricks
@@ -87,29 +88,9 @@ DATABRICKS_CATALOG=your_databricks_catalog
 DATABRICKS_SCHEMA=your_databricks_schema
 
 # Neo4j
-NEO4J_BOLT_URL=bolt://...
+NEO4J_BOLT_URL=bolt://...:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your_password
-```
-
-## Environment Setup for knowledge graph construction
-
-This ```.env``` file must be placed in Alfred’s main directory.
-
-``` env
-AZURE_OPENAI_BASE_URL=...
-AZURE_OPENAI_API_VERSION=2024-10-21
-AZURE_OPENAI_API_KEY=...
-
-NEO4J_BOLT_URL=bolt://localhost:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=password
-
-DATABRICKS_HOST=....databricks.com
-DATABRICKS_TOKEN=your_personal_access_token
-DATABRICKS_WAREHOUSE_ID=your_warehouse_id
-DATABRICKS_CATALOG=your_databricks_catalog
-DATABRICKS_SCHEMA=your_databricks_schema
 ```
 
 ## Getting started from scratch
@@ -117,17 +98,18 @@ DATABRICKS_SCHEMA=your_databricks_schema
 If you want to try Alfred and you do not have a concrete Databricks dataset and a generated knowledge graph, you can start with the [Databricks Free Edition](https://www.databricks.com/learn/free-edition). From databricks you get your credentials for your ```.env```:
 
 ``` bash
-DATABRICKS_HOST=....cloud.databricks.com
-DATABRICKS_TOKEN=...dapi1b49f5c1da9730ee61e190901e8b0b3c
-DATABRICKS_WAREHOUSE_ID=...
-DATABRICKS_CATALOG=your_catalog
-DATABRICKS_SCHEMA=your_database_schema
+DATABRICKS_HOST=....databricks.com
+DATABRICKS_TOKEN=your_personal_access_token
+DATABRICKS_WAREHOUSE_ID=your_warehouse_id
+DATABRICKS_CATALOG=your_databricks_catalog
+DATABRICKS_SCHEMA=your_databricks_schema
 ```
 
-Create and run then a Neo4j instance on your local machine running the following command.
+Create and run then a Neo4j instance on your local machine running the following command. 
+It is recommended to always use a stronger password.
 
 ``` bash
-sudo docker run -d --name neo4j  --restart unless-stopped -p 7474:7474 -p 7687:7687 -v $HOME/neo4j/data:/data -v $HOME/neo4j/logs:/logs -v $HOME/neo4j/import:/var/lib/neo4j/import -v $HOME/neo4j/plugins:/plugins -e NEO4J_AUTH=neo4j/neo4j neo4j:2025.12.1
+sudo docker run -d --name neo4j  --restart unless-stopped -p 7474:7474 -p 7687:7687 -v $HOME/neo4j/data:/data -v $HOME/neo4j/logs:/logs -v $HOME/neo4j/import:/var/lib/neo4j/import -v $HOME/neo4j/plugins:/plugins -e NEO4J_AUTH=neo4j/password neo4j:2025.12.1
 ```
 
 Add then to your ```.env```:
@@ -137,7 +119,6 @@ NEO4J_BOLT_URL=bolt://localhost:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=password
 ```
-
 
 Afterwards, there are a couple of helper notebooks in the `scripts/` folder.
 
@@ -150,11 +131,11 @@ Afterwards, there are a couple of helper notebooks in the `scripts/` folder.
   - This is designed to be **run on your local machine** where it can access your Databricks tables and talk to Neo4j.
 
 In a typical flow you would:
-
-1. Configure your Databricks and Neo4j credentials via environment variables as described above.
+1. Get started with using Neo4j and Databricks.
 2. If you not have any data in databricks, you open `create_databricks_schema.ipynb` in Databricks and run it to set up the sample schema and data.
+3. Configure your Databricks and Neo4j credentials via environment variables as described above.
 3. Open `create_graph_from_databricks.ipynb` on your local machine and run it to materialize the knowledge graph in Neo4j.
-4. Start the Alfred app and start asking questions.
+4. Run Alfred and start asking questions.
 
 These notebooks are intentionally simple and are meant as a starting point you can fork and adapt to your own schemas, business concepts, and graph modeling conventions.
 
@@ -167,7 +148,7 @@ cd alfred-app
 npm run dev
 ```
 
-The application will be available at `http://localhost:3000`.
+Alfred will be available at `http://localhost:3000`.
 
 ## Building Alfred for Production
 
@@ -181,8 +162,8 @@ npm start
 
 - `app/` - Next.js application and API routes
 - `components/` - React components for UI and assistant-ui interface
-- `mnt/skill` - Aflfred's Skills
-- `lib/tools/` - Alfred's skills: View files, Data query tools and utilities for Databricks, SQL, and Neo4j
+- `mnt/skill` - Agent Skills for Alfred
+- `lib/tools/` - Alfred's tools: View files, Data query tools and utilities for Databricks, SQL, and Neo4j
 - `lib/prompts/` - System prompt(s) for the application
 
 ## Configuring Databricks and Neo4j Tools
