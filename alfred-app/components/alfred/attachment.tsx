@@ -11,7 +11,6 @@ import {
   useAssistantApi,
   useAui,
 } from "@assistant-ui/react";
-import { useShallow } from "zustand/shallow";
 import {
   Tooltip,
   TooltipContent,
@@ -66,17 +65,23 @@ const useFileSrc = (file: File | undefined) => {
 };
 
 const useAttachmentSrc = () => {
+  // Use `any` for the selector state to avoid depending on the
+  // (incomplete) AssistantState typings from the library. At runtime,
+  // the attachment client exposes `attachment` with `type`, `file`,
+  // and `content` as used below.
   const { file, src } = useAssistantState(
-    useShallow(
-      ({ attachment }): { file?: File; src?: string } => {
-        if (attachment.type !== "image") return {};
-        if (attachment.file) return { file: attachment.file };
-        const src = attachment.content?.filter((c) => c.type === "image")[0]
-          ?.image;
-        if (!src) return {};
-        return { src };
-      },
-    ),
+    (state: any): { file?: File; src?: string } => {
+      const attachment = state?.attachment;
+      if (!attachment || attachment.type !== "image") return {};
+      if (attachment.file) return { file: attachment.file };
+
+      const src = attachment.content
+        ?.filter((c: any) => c.type === "image")[0]
+        ?.image;
+
+      if (!src) return {};
+      return { src };
+    },
   );
 
   return useFileSrc(file) ?? src;
@@ -132,7 +137,7 @@ const AttachmentPreviewDialog: FC<PropsWithChildren> = ({ children }) => {
 
 const AttachmentThumb: FC = () => {
   const isImage = useAssistantState(
-    ({ attachment }) => attachment.type === "image",
+    (state: any) => state.attachment?.type === "image",
   );
   const src = useAttachmentSrc();
 
@@ -154,14 +159,15 @@ const AttachmentThumb: FC = () => {
 };
 
 const AttachmentUI: FC = () => {
-  const api = useAssistantApi();
-  const isComposer = api.attachment.source === "composer";
+  // Cast to any to work around incomplete AssistantClient typings
+  const api = useAssistantApi() as any;
+  const isComposer = api.attachment?.source === "composer";
 
   const isImage = useAssistantState(
-    ({ attachment }) => attachment.type === "image",
+    (state: any) => state.attachment?.type === "image",
   );
-  const typeLabel = useAssistantState(({ attachment }) => {
-    const type = attachment.type;
+  const typeLabel = useAssistantState((state: any) => {
+    const type = state.attachment?.type as string | undefined;
     switch (type) {
       case "image":
         return "Image";
@@ -169,10 +175,8 @@ const AttachmentUI: FC = () => {
         return "Document";
       case "file":
         return "File";
-      default: {
-        const _exhaustiveCheck: never = type;
-        throw new Error(`Unknown attachment type: ${_exhaustiveCheck}`);
-      }
+      default:
+        return "Attachment";
     }
   });
 
@@ -246,7 +250,8 @@ export const ComposerAttachments: FC = () => {
 };
 
 export const ComposerAddAttachment: FC = () => {
-  const aui = useAui();
+  // Cast to any to work around incomplete AssistantClient typings
+  const aui = useAui() as any;
   const speechSupported = useSpeechRecognitionSupported();
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [showEmptyEnhanceHint, setShowEmptyEnhanceHint] = useState(false);

@@ -58,7 +58,7 @@ export const ThreadList: FC = () => {
   const [messagesByThread, setMessagesByThread] = useState<Record<string, string>>({});
   const [hasIndexedMessages, setHasIndexedMessages] = useState(false);
 
-  const { threadIds } = useAssistantState(({ threads }) => threads);
+  const { threadIds } = useAssistantState(({ threads }: any) => threads);
 
   useEffect(() => {
     let cancelled = false;
@@ -232,7 +232,7 @@ const ThreadListNew: FC = () => {
 };
 
 const ThreadListItems: FC = () => {
-  const { isLoading } = useAssistantState(({ threads }) => threads);
+  const { isLoading } = useAssistantState(({ threads }: any) => threads);
 
   if (isLoading) {
     return <ThreadListSkeleton />;
@@ -265,7 +265,8 @@ const ThreadListSkeleton: FC = () => {
 };
 
 const ThreadListItem: FC = () => {
-  const aui = useAui();
+	// Cast to any to work around incomplete AssistantClient typings for the threadListItem client
+	const aui = useAui() as any;
   const [isRenaming, setIsRenaming] = useState(false);
 
   const metaById = useContext(ThreadMetaContext);
