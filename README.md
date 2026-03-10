@@ -70,8 +70,8 @@ npm install
 
 ## Environment Setup for Alfred
 
-Two .env files are necessary for 1. the alfred-app itself and for the creation of the neo4j graph.
-Create both a `.env.local` file under the alfred-app directory and a ```.env``` file that is placed in Alfred’s main directory with:
+Two .env files are necessary for both the alfred-app itself and for the creation of the neo4j graph.
+Create therefore a `.env.local` file under the alfred-app directory and a ```.env``` file that is placed in Alfred’s main directory using the credentials:
 
 ```env
 # Azure
@@ -105,14 +105,7 @@ DATABRICKS_CATALOG=your_databricks_catalog
 DATABRICKS_SCHEMA=your_databricks_schema
 ```
 
-Create and run then a Neo4j instance on your local machine running the following command. 
-It is recommended to always use a stronger password.
-
-``` bash
-sudo docker run -d --name neo4j  --restart unless-stopped -p 7474:7474 -p 7687:7687 -v $HOME/neo4j/data:/data -v $HOME/neo4j/logs:/logs -v $HOME/neo4j/import:/var/lib/neo4j/import -v $HOME/neo4j/plugins:/plugins -e NEO4J_AUTH=neo4j/password neo4j:2025.12.1
-```
-
-Add then to your ```.env```:
+Add then to your ```.env``` the credentials for neo4j (the neo4j will be build in the next step):
 
 ```
 NEO4J_BOLT_URL=bolt://localhost:7687
@@ -120,7 +113,25 @@ NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=password
 ```
 
-Afterwards, there are a couple of helper notebooks in the `scripts/` folder.
+Next, we build and run both alfred and neo4j with docker
+```
+cd alfred-app
+docker compose build .
+
+# Start the service
+docker compose up
+```
+If you run into package or native module issues (like better-sqlite3), rebuild without cache:
+```
+
+docker compose build --no-cache
+```
+
+Access the applications
+- **Neo4j Browser:** [http://localhost:7474](http://localhost:7474)  
+- **Alfred App:** [http://localhost:3000](http://localhost:3000)
+
+Afterwards, there are a couple of helper notebooks in the `scripts/` folder to integrate databricks data in your Free Edition and to build the knowledge graph.
 
 - `scripts/create_databricks_schema.ipynb`
   - Use this to **initialize sample data and schema in Databricks**.

@@ -23,7 +23,7 @@ export default function Home() {
       <SidebarProvider>
         <div className="flex h-dvh w-full pr-0.5">
           <ThreadListSidebar />
-          <SidebarInset>
+          <SidebarInset className="flex flex-1 flex-col overflow-hidden">
             <header className="flex h-16 shrink-0 items-center gap-2 px-4">
               <SidebarTrigger />
               <Breadcrumb>
@@ -38,9 +38,9 @@ export default function Home() {
                 </BreadcrumbList>
               </Breadcrumb>
             </header>
-            <div className="flex-1 overflow-hidden">
+            <main className="flex-1 overflow-hidden">
               <Thread />
-            </div>
+            </main>
           </SidebarInset>
         </div>
       </SidebarProvider>

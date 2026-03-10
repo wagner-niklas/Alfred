@@ -46,7 +46,10 @@ export const Thread: FC = () => {
             ["--thread-max-width" as string]: "48rem",
           }}
         >
-          <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 overflow-x-auto overflow-y-auto px-4">
+          <ThreadPrimitive.Viewport
+            turnAnchor="top"
+            className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
+          >     
             {/* EMPTY STATE: centered welcome + smaller input */}
             <ThreadPrimitive.If empty>
               <div className="flex flex-1 items-center justify-center">
@@ -80,13 +83,21 @@ export const Thread: FC = () => {
                   }}
                 />
 
-                <div className="aui-thread-viewport-spacer min-h-8 grow" />
-
+                
+                <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mx-auto mt-auto flex w-full max-w-(--thread-max-width) flex-col overflow-visible rounded-t-3xl bg-background pb-4 md:pb-2">
+                <ThreadScrollToBottom />
                 {/* Composer (non-empty thread): follow-up prompt */}
                 <Composer
                   variant="default"
-                  placeholder="Ask a follow-up question ..."
+                  placeholder="Ask a follow-up question"
                 />
+
+                {/* AI Disclaimer only for follow-up prompts */}
+                <div className="aui-composer-disclaimer text-xs text-muted-foreground text-center mx-auto">
+                  AI can make mistakes. Please verify critical information.
+                </div>
+                </ThreadPrimitive.ViewportFooter>
+
               </div>
             </ThreadPrimitive.If>
           </ThreadPrimitive.Viewport>
@@ -273,13 +284,6 @@ const Composer: FC<ComposerProps> = ({
         />
         <ComposerAction />
       </ComposerPrimitive.Root>
-
-      {/* AI Disclaimer nur für default */}
-      {variant === "default" && (
-        <div className="aui-composer-disclaimer text-xs text-muted-foreground text-center mx-auto">
-          AI can make mistakes. Please verify critical information independently.
-        </div>
-      )}
     </div>
   );
 };
@@ -368,7 +372,7 @@ const AssistantActionBar: FC = () => {
       autohideFloat="single-branch"
       className="aui-assistant-action-bar-root col-start-3 row-start-2 -ml-1 flex gap-1 text-muted-foreground data-floating:absolute data-floating:rounded-md data-floating:border data-floating:bg-background data-floating:p-1 data-floating:shadow-sm"
     >
-      {/* ✅ COPY */}
+      {/* COPY */}
       <ActionBarPrimitive.Copy asChild>
         <TooltipIconButton tooltip="Kopieren">
           <MessagePrimitive.If copied>
@@ -380,7 +384,7 @@ const AssistantActionBar: FC = () => {
         </TooltipIconButton>
       </ActionBarPrimitive.Copy>
 
-      {/* ✅ RELOAD */}
+      {/* RELOAD */}
       <ActionBarPrimitive.Reload asChild>
         <TooltipIconButton tooltip="Anfrage wiederholen">
           <RefreshCwIcon />

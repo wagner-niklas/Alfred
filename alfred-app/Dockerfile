@@ -1,31 +1,20 @@
-# ==============================
-# Builder stage
-# ==============================
-FROM node:25-alpine AS builder
+FROM node:22
 
 WORKDIR /app
 
+# Install dependencies (production only)
 COPY package*.json ./
-RUN npm ci --ignore-scripts
+RUN npm install --omit=dev
 
+# Copy the rest of the app source
 COPY . .
-RUN npm run build
 
-# ==============================
-# Production runner stage
-# ==============================
-FROM gcr.io/distroless/nodejs24-debian13 AS runner
-WORKDIR /app
+# Build the Next.js app
+RUN npm run build
 
 ENV NODE_ENV=production
 
-COPY .env.local .env
-
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
-
 EXPOSE 3000
 
-# Start Next.js server
-CMD ["server.js"]
+# Start the production server
+CMD ["npm", "start"]

@@ -240,7 +240,7 @@ const ReasoningGroupImpl: ReasoningGroupComponent = ({
   /**
    * Detects if reasoning is currently streaming within this group's range.
    */
-  const isReasoningStreaming = useAssistantState(({ message }) => {
+  const isReasoningStreaming = useAssistantState(({ message }: any) => {
     if (message.status?.type !== "running") return false;
     const lastIndex = message.parts.length - 1;
     if (lastIndex < 0) return false;

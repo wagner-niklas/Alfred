@@ -176,7 +176,8 @@ const remoteThreadListAdapter: RemoteThreadListAdapter = {
 };
 
 function ThreadProvider({ children }: { children: ReactNode }) {
-  const aui = useAui();
+	// Cast to any to work around incomplete AssistantClient typings for the threadListItem client
+	const aui = useAui() as any;
 
   const history = useMemo<ThreadHistoryAdapter>(
     () => ({
