@@ -76,9 +76,10 @@ Create therefore a `.env.local` file under the alfred-app directory and a ```.en
 ```env
 # Azure
 AZURE_OPENAI_API_KEY=your_api_key
-AZURE_OPENAI_BASE_URL=https://...
+AZURE_OPENAI_BASE_URL=https://.../openai/
 AZURE_API_VERSION=yyyy-MM-dd
-AZURE_OPENAI_MODEL=gpt-...
+AZURE_OPENAI_EMBEDDING_MODEL=text-embedding-3-large
+AZURE_OPENAI_DEPLOYMENT=gpt-5.1
 
 # Databricks
 DATABRICKS_HOST=your_workspace_url
