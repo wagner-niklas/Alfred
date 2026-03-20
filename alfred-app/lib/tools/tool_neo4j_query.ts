@@ -38,7 +38,7 @@ const embeddingModel = azure.embedding(AZURE_OPENAI_EMBEDDING_MODEL);
 // the notebook's retrieval_query for Table context. The main query will
 // prepend an appropriate MATCH/WHERE clause.
 const TABLE_RETRIEVAL_CYPHER = `
-OPTIONAL MATCH (node)-[:CONTAINS]->(col:Column)
+OPTIONAL MATCH (node)-[:HAS_COLUMN]->(col:Column)
 OPTIONAL MATCH (col)-[:MAPS_TO_CONCEPT]->(concept:Concept)
 OPTIONAL MATCH (concept)<-[:MAPS_TO_CONCEPT]-(relatedCol:Column)
 
