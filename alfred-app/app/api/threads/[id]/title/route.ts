@@ -33,7 +33,7 @@ export async function POST(req: Request, context: RouteContext) {
         .map((p: any) => p.text as string);
       const combined = textParts.join(" ").trim();
       if (combined) {
-        title = combined.length > 30 ? combined.slice(0, 30) + "..." : combined;
+        title = combined.length > 15 ? combined.slice(0, 15) + "..." : combined;
       }
     }
   }

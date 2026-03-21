@@ -7,6 +7,7 @@ import { createAzure } from "@ai-sdk/azure";
 const NEO4J_BOLT_URL = process.env.NEO4J_BOLT_URL!;
 const NEO4J_USERNAME = process.env.NEO4J_USERNAME!;
 const NEO4J_PASSWORD = process.env.NEO4J_PASSWORD!;
+const TOP_K = 3
 
 export const driver = neo4j.driver(
   NEO4J_BOLT_URL,
@@ -37,7 +38,7 @@ const embeddingModel = azure.embedding(AZURE_OPENAI_EMBEDDING_MODEL);
 // the notebook's retrieval_query for Table context. The main query will
 // prepend an appropriate MATCH/WHERE clause.
 const TABLE_RETRIEVAL_CYPHER = `
-OPTIONAL MATCH (node)-[:CONTAINS]->(col:Column)
+OPTIONAL MATCH (node)-[:HAS_COLUMN]->(col:Column)
 OPTIONAL MATCH (col)-[:MAPS_TO_CONCEPT]->(concept:Concept)
 OPTIONAL MATCH (concept)<-[:MAPS_TO_CONCEPT]-(relatedCol:Column)
 
@@ -74,16 +75,8 @@ export const tool_neo4j_query = () =>
         .describe(
           "Natural language question used to retrieve relevant subinformation about database structures, entities, or relationships from the knowledge graph."
         ),
-      top_k: z
-        .number()
-        .int()
-        .positive()
-        .default(3)
-        .describe(
-          "Maximum number of relevant database entities or results to return from the knowledge graph."
-        ),
     }),
-    execute: async ({ query, top_k = 3 }) => {
+    execute: async ({ query}) => {
       const session = getSession();
 
       try {
@@ -105,7 +98,7 @@ ORDER BY score DESC
 `;
 
         const vectorResult = await session.run(vectorSearchCypher, {
-          topK: top_k,
+          topK: TOP_K,
           embedding,
         });
 

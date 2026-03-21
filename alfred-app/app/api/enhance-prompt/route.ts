@@ -47,7 +47,6 @@ export async function POST(req: Request) {
     const neo4jResult = await neo4jTool.execute(
       {
         query: prompt,
-        top_k: 3,
       },
       undefined as any,
     );
