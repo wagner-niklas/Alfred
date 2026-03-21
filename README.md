@@ -2,6 +2,7 @@
 [![Skills](https://img.shields.io/badge/-Agent%20Skills-4c51bf?style=flat-square)](#features)
 [![Knowledge Graph](https://img.shields.io/badge/-Knowledge%20Graph-38a169?style=flat-square)](#domain-adoption-with-semantic-knowledge-graphs)
 [![Text-to-SQL](https://img.shields.io/badge/-Text--to--SQL-ed8936?style=flat-square)](#features)
+[![Reddit Community](https://img.shields.io/badge/r-AlfredAI-FF4500?style=flat-square&logo=reddit&logoColor=white)](https://www.reddit.com/r/AlfredAI/)
 
 An open, inspectable AI data assistant for working with Agent Skills, semantic knowledge graphs and structured domain data.
 
