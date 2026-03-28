@@ -71,8 +71,7 @@ npm install
 
 ## Environment Setup for Alfred
 
-Two .env files are necessary for both the alfred-app itself and for the creation of the neo4j graph.
-Create therefore a `.env.local` file under the alfred-app directory and a ```.env``` file that is placed in Alfred’s main directory using the credentials:
+A .env files are necessary for the creation of the neo4j graph from databricks. When the alfred-app is running, those credentials can be added in the settings page.
 
 ```env
 # Azure
@@ -93,6 +92,23 @@ DATABRICKS_SCHEMA=your_databricks_schema
 NEO4J_BOLT_URL=bolt://...:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your_password
+
+## Encryption of Alfred user settings (API keys, tokens, passwords)
+
+Alfred stores per-user configuration (chat models, Databricks, Neo4j, etc.) in a local SQLite database under `alfred-app/data/alfred.sqlite`. To avoid storing secrets like API keys, tokens, and passwords im Klartext, Alfred supports transparent encryption at rest.
+
+- Sensitive settings are stored in the `user_settings` table and can be encrypted with **AES-256-GCM**.
+- Encryption is controlled via a single environment variable in your `alfred-app/.env.local`:
+
+```env
+ALFRED_ENCRYPTION_KEY=...
+```
+
+Requirements and behavior:
+
+- The key must represent **32 bytes (256 Bit)** – recommended format is a 64-character hex string (you can generate one with `openssl rand -hex 32`).
+- When a valid key is set, Alfred encrypts/decrypts all sensitive settings in `user_settings` transparently.
+- If no valid key is configured, the app still works, but secrets are stored as plain JSON in SQLite (only recommended for local development and testing).
 ```
 
 ## Getting started from scratch
@@ -107,7 +123,7 @@ DATABRICKS_CATALOG=your_databricks_catalog
 DATABRICKS_SCHEMA=your_databricks_schema
 ```
 
-Add then to your ```.env``` the credentials for neo4j (the neo4j will be build in the next step):
+Add then to your ```.env``` the credentials for neo4j knowledge graph (the neo4j will be build in the next step):
 
 ```
 NEO4J_BOLT_URL=bolt://localhost:7687
@@ -148,7 +164,7 @@ In a typical flow you would:
 2. If you not have any data in databricks, you open `create_databricks_schema.ipynb` in Databricks and run it to set up the sample schema and data.
 3. Configure your Databricks and Neo4j credentials via environment variables as described above.
 3. Open `create_graph_from_databricks.ipynb` on your local machine and run it to materialize the knowledge graph in Neo4j.
-4. Run Alfred and start asking questions.
+4. Run Alfred, add credentials in the settings section and start asking questions.
 
 These notebooks are intentionally simple and are meant as a starting point you can fork and adapt to your own schemas, business concepts, and graph modeling conventions.
 

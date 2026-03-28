@@ -1,9 +1,16 @@
 import { DBSQLClient } from '@databricks/sql';
+import type { DatabricksSettings } from "@/lib/db";
 
-export async function executeDatabricksSQL(sql: string) {
-  const token = process.env.DATABRICKS_TOKEN!;
-  const server_hostname = process.env.DATABRICKS_HOST!;
-  const http_path = `/sql/1.0/warehouses/${process.env.DATABRICKS_WAREHOUSE_ID!}`;
+// Execute a read-only SQL query against Databricks using either per-user
+// settings or, as a fallback, environment variables.
+//
+// The caller is responsible for passing in a DatabricksSettings object. This
+// keeps the function agnostic of how settings are stored (DB, env, etc.).
+
+export async function executeDatabricksSQL(sql: string, settings: DatabricksSettings) {
+  const token = settings.token;
+  const server_hostname = settings.host;
+  const http_path = settings.httpPath;
 
   const client = new DBSQLClient();
 

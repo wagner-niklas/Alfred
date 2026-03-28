@@ -2,45 +2,12 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
-const SKILLS_ROOT = path.join(process.cwd(), "mnt/skills");
-
-function isValidSlug(slug: string): boolean {
-  return (
-    typeof slug === "string" &&
-    slug.trim().length > 0 &&
-    !slug.includes("/") &&
-    !slug.includes("\\") &&
-    !slug.includes("..")
-  );
-}
-
-function parseFrontmatter(content: string): {
-  name?: string;
-  description?: string;
-} {
-  const match = content.match(/^---\s*[\r\n]+([\s\S]*?)\r?\n---/);
-  if (!match) return {};
-
-  const frontmatter = match[1];
-  let name: string | undefined;
-  let description: string | undefined;
-
-  for (const rawLine of frontmatter.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-
-    const separatorIndex = line.indexOf(":");
-    if (separatorIndex === -1) continue;
-
-    const key = line.slice(0, separatorIndex).trim();
-    const value = line.slice(separatorIndex + 1).trim();
-
-    if (key === "name") name = value;
-    if (key === "description") description = value;
-  }
-
-  return { name, description };
-}
+import {
+  SKILLS_ROOT,
+  isValidSlug,
+  parseFrontmatter,
+  readSkillFromDisk,
+} from "@/lib/skills/utils";
 
 // NOTE: In newer Next.js App Router versions, `params` is provided as a
 // Promise in route handlers, so we need to `await` it before accessing
@@ -71,10 +38,8 @@ export async function GET(
   }
 
   try {
-    const content = fs.readFileSync(skillFile, "utf8");
-    const { name, description } = parseFrontmatter(content);
-
-    return NextResponse.json({ slug, name, description, content });
+    const detail = await readSkillFromDisk(slug);
+    return NextResponse.json(detail);
   } catch (error) {
     console.error("Error reading skill:", error);
     return NextResponse.json(

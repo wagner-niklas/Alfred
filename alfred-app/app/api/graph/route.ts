@@ -1,6 +1,9 @@
+
 import { NextResponse } from "next/server";
 import type { Node, Relationship } from "neo4j-driver";
-import { getSession } from "@/lib/tools/tool_neo4j_query";
+import { createNeo4jSession } from "@/lib/tools/tool_neo4j_query";
+import { getOrCreateUserId } from "@/lib/user";
+import { getUserSettings } from "@/lib/db";
 
 /**
  * API surface for the `/api/graph` endpoint that backs the graph view.
@@ -34,8 +37,10 @@ type GraphLink = {
  * Default graph sample: fetches a small slice of the Neo4j database using a
  * fixed Cypher query. This is what the graph view loads on first render.
  */
-export async function GET() {
-  const session = getSession();
+export async function GET(req: Request) {
+  const { userId } = getOrCreateUserId(req);
+  const userSettings = getUserSettings(userId);
+  const { driver, session } = createNeo4jSession(userSettings?.graph ?? null);
 
   try {
     // Fetch a larger slice of the graph so the visualization shows more
@@ -90,6 +95,7 @@ export async function GET() {
     );
   } finally {
     await session.close();
+    await driver.close();
   }
 }
 
@@ -102,7 +108,9 @@ export async function GET() {
  * node `{ id }` is inserted and later "upgraded" once the full node appears.
  */
 export async function POST(request: Request) {
-  const session = getSession();
+  const { userId } = getOrCreateUserId(request);
+  const userSettings = getUserSettings(userId);
+  const { driver, session } = createNeo4jSession(userSettings?.graph ?? null);
 
   try {
     const body = await request.json().catch(() => null);
@@ -199,6 +207,7 @@ export async function POST(request: Request) {
     );
   } finally {
     await session.close();
+    await driver.close();
   }
 }
 

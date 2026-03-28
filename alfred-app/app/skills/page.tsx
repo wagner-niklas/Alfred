@@ -35,8 +35,10 @@ export default function SkillsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    setHydrated(true);
     void loadSkills();
     // We intentionally do not include `selectedSlug` in the dependency
     // array here; `loadSkills` accepts an explicit `initialSlug` argument
@@ -268,6 +270,8 @@ export default function SkillsPage() {
     }
   }
 
+  const isSaveDisabled = !detail || saving;
+
   return (
     <div className="flex h-dvh w-full pr-0.5">
       <GraphSidebar />
@@ -379,7 +383,7 @@ export default function SkillsPage() {
                     size="sm"
                     className="text-xs"
                     onClick={handleSave}
-                    disabled={!detail || saving}
+                    disabled={hydrated ? isSaveDisabled : false}
                   >
                     Save
                   </Button>

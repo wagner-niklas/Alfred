@@ -38,25 +38,23 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
         : JSON.stringify(status.error)
       : null;
 
-  const [open, setOpen] = useState(Boolean(isRunning));
+  // 1. Start always collapsed
+  const [open, setOpen] = useState(false);
 
-  // Auto-expand while the tool is running, then collapse once it finishes.
-  const prevIsRunningRef = useRef(isRunning);
+  // 2. Remove auto-expand / auto-collapse behavior
+  // const prevIsRunningRef = useRef(isRunning);
 
-  useEffect(() => {
-    const prevIsRunning = prevIsRunningRef.current;
-
-    if (isRunning) {
-      // Ensure details are visible while the tool is executing.
-      setOpen(true);
-    } else if (prevIsRunning && !isRunning) {
-      // Once a previously running tool finishes (success or cancelled),
-      // collapse the panel by default. The user can still re-open it manually.
-      setOpen(false);
-    }
-
-    prevIsRunningRef.current = isRunning;
-  }, [isRunning]);
+  // useEffect(() => {
+  //   const prevIsRunning = prevIsRunningRef.current;
+  //
+  //   if (isRunning) {
+  //     setOpen(true);
+  //   } else if (prevIsRunning && !isRunning) {
+  //     setOpen(false);
+  //   }
+  //
+  //   prevIsRunningRef.current = isRunning;
+  // }, [isRunning]);
 
   return (
     <Collapsible

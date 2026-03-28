@@ -1,18 +1,9 @@
 import { NextResponse } from "next/server";
-import { createAzure } from "@ai-sdk/azure";
 import { generateText } from "ai";
 
 import { tool_neo4j_query } from "@/lib/tools/tool_neo4j_query";
 import { ENHANCE_PROMPT_SYSTEM } from "@/lib/prompts/enhance-prompt";
-
-const azure = createAzure({
-  apiKey: process.env.AZURE_OPENAI_API_KEY!,
-  apiVersion: process.env.AZURE_OPENAI_API_VERSION!,
-  baseURL: process.env.AZURE_OPENAI_BASE_URL!,
-  useDeploymentBasedUrls: true,
-});
-
-const deployment = process.env.AZURE_OPENAI_DEPLOYMENT!;
+import { getDefaultChatModel } from "@/lib/azure";
 
 type EnhancePromptRequestBody = {
   prompt?: string;
@@ -56,7 +47,7 @@ export async function POST(req: Request) {
     const system = ENHANCE_PROMPT_SYSTEM;
 
     const { text } = await generateText({
-      model: azure.chat(deployment),
+      model: getDefaultChatModel(),
       system,
       prompt:
         `Original prompt (from the user):\n` +
