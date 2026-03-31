@@ -1,9 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-
-import { AppSidebar } from "@/components/alfred/app-sidebar";
-import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -484,31 +482,29 @@ function SettingsPageInner() {
   };
 
   return (
-    <div className="flex h-dvh w-full pr-0.5">
-      <AppSidebar />
-      <SidebarInset className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 shrink-0 items-center gap-2 px-4">
-          <SidebarTrigger />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem className="hidden md:block">
-                <BreadcrumbLink asChild>
-                  <Link
-                    href={userIdFromQuery ? `/alfred?user_id=${encodeURIComponent(userIdFromQuery)}` : "/alfred"}
-                  >
-                    Home
-                  </Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="hidden md:block" />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Settings</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </header>
+    <>
+      <header className="flex h-16 shrink-0 items-center gap-2 px-4">
+        <SidebarTrigger />
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem className="hidden md:block">
+              <BreadcrumbLink asChild>
+                <Link
+                  href={userIdFromQuery ? `/alfred?user_id=${encodeURIComponent(userIdFromQuery)}` : "/alfred"}
+                >
+                  Home
+                </Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="hidden md:block" />
+            <BreadcrumbItem>
+              <BreadcrumbPage>Settings</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+      </header>
 
-        <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto">
           <div className="container mx-auto max-w-4xl py-8 space-y-6">
             <h1 className="text-2xl font-semibold">Settings</h1>
 
@@ -815,9 +811,8 @@ function SettingsPageInner() {
               </div>
             </div>
           </div>
-        </main>
-      </SidebarInset>
-    </div>
+      </main>
+    </>
   );
 }
 

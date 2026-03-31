@@ -525,7 +525,7 @@ export const ComposerAddAttachment: FC = () => {
           onClick={handleEnhancePrompt}
         >
           <Wand2Icon className="h-4 w-4 md:mr-1.5" />
-          <span className="hidden md:inline">Mediate my prompt</span>
+          <span className="hidden md:inline">Mediate prompt</span>
         </TooltipIconButton>
       </div>
       </div>
