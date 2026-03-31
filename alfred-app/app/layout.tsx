@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { AlfredRuntimeProvider } from "@/components/alfred/runtime-provider";
+import { AppSidebar } from "@/components/alfred/app-sidebar";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -38,7 +40,16 @@ export default async function RootLayout({ children }: RootLayoutProps) {
           enableSystem
           disableTransitionOnChange
         >
-          <SidebarProvider>{children}</SidebarProvider>
+          <SidebarProvider>
+            <AlfredRuntimeProvider>
+              <div className="flex h-dvh w-full pr-0.5">
+                <AppSidebar />
+                <SidebarInset className="flex flex-1 flex-col overflow-hidden">
+                  {children}
+                </SidebarInset>
+              </div>
+            </AlfredRuntimeProvider>
+          </SidebarProvider>
         </ThemeProvider>
       </body>
     </html>

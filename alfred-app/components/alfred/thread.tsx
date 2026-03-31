@@ -17,6 +17,7 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useAui,
 } from "@assistant-ui/react";
 
 import type { FC } from "react";
@@ -34,6 +35,7 @@ import {
   UserMessageAttachments,
 } from "@/components/alfred/attachment";
 import { useState, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 export const Thread: FC = () => {
@@ -61,7 +63,7 @@ export const Thread: FC = () => {
                   <div className="mt-14 w-full flex justify-center">
                     <Composer
                       variant="compact"
-                      placeholder="Ask me anything ..."
+                      placeholder="Ask me anything..."
                     />
                   </div>
 
@@ -261,6 +263,35 @@ const Composer: FC<ComposerProps> = ({
   placeholder = "Ask me anything ...",
 }) => {
   const isDefault = variant === "default";
+  const router = useRouter();
+  const pathname = usePathname();
+  const aui = useAui() as any;
+
+  // When composing on the top-level /alfred route ("New thread"),
+  // automatically navigate to /alfred/[threadId] after the first
+  // message is submitted so the URL always reflects the active thread.
+  //
+  // We hook into the form submit capture phase so this runs whether
+  // the user clicks the send button or presses Enter, while still
+  // letting Assistant UI handle the actual send behavior.
+  const handleSubmitCapture = async () => {
+    // Only redirect from the generic Alfred entry page; once a concrete
+    // thread URL is active (/alfred/[id]), we no longer interfere.
+    if (pathname !== "/alfred") return;
+
+    try {
+      if (typeof aui.threadListItem !== "function") return;
+
+      const item = aui.threadListItem();
+      const { remoteId } = await item.initialize();
+      if (!remoteId) return;
+
+      router.push(`/alfred/${encodeURIComponent(remoteId)}`);
+    } catch (error) {
+      // Best-effort only – a failure here should not block sending.
+      console.error("Failed to redirect to Alfred thread page", error);
+    }
+  };
 
   return (
     <div
@@ -271,7 +302,10 @@ const Composer: FC<ComposerProps> = ({
       )}
     >
       <ThreadScrollToBottom />
-      <ComposerPrimitive.Root className="aui-composer-root group/input-group relative flex w-full flex-col rounded-3xl border border-input bg-background px-1 pt-2 shadow-xs transition-[color,box-shadow] outline-none has-[textarea:focus-visible]:border-ring has-[textarea:focus-visible]:ring-[3px] has-[textarea:focus-visible]:ring-ring/50 dark:bg-background">
+      <ComposerPrimitive.Root
+        className="aui-composer-root group/input-group relative flex w-full flex-col rounded-3xl border border-input bg-card px-1 pt-2 shadow-xs transition-[color,box-shadow] outline-none has-[textarea:focus-visible]:border-ring has-[textarea:focus-visible]:ring-[3px] has-[textarea:focus-visible]:ring-ring/50 dark:bg-card"
+        onSubmitCapture={handleSubmitCapture}
+      >
         <ComposerAttachments />
         <ComposerPrimitive.Input
           placeholder={placeholder}
@@ -375,7 +409,7 @@ const AssistantActionBar: FC = () => {
     >
       {/* COPY */}
       <ActionBarPrimitive.Copy asChild>
-        <TooltipIconButton tooltip="Kopieren">
+        <TooltipIconButton tooltip="Copy">
           <MessagePrimitive.If copied>
             <CheckIcon />
           </MessagePrimitive.If>
@@ -387,7 +421,7 @@ const AssistantActionBar: FC = () => {
 
       {/* RELOAD */}
       <ActionBarPrimitive.Reload asChild>
-        <TooltipIconButton tooltip="Anfrage wiederholen">
+        <TooltipIconButton tooltip="Rewrite Thread">
           <RefreshCwIcon />
         </TooltipIconButton>
       </ActionBarPrimitive.Reload>
@@ -427,7 +461,7 @@ const UserActionBar: FC = () => {
       className="aui-user-action-bar-root flex flex-col items-end"
     >
       <ActionBarPrimitive.Edit asChild>
-        <TooltipIconButton tooltip="Edit" className="aui-user-action-edit p-4">
+        <TooltipIconButton tooltip="Edit query" className="aui-user-action-edit p-4">
           <PencilIcon />
         </TooltipIconButton>
       </ActionBarPrimitive.Edit>

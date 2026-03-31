@@ -12,16 +12,15 @@ import {
   useAssistantState,
   useAui,
 } from "@assistant-ui/react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ArchiveIcon,
   PencilIcon,
-  PlusIcon,
   Search as SearchIcon,
   CircleX as ClearIcon,
   MoreHorizontal as EllipsisIcon,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -215,25 +214,10 @@ export const ThreadList: FC = () => {
               )}
             </div>
           </div>
-          <ThreadListNew />
           <ThreadListItems />
         </ThreadListPrimitive.Root>
       </ThreadSearchContext.Provider>
     </ThreadMetaContext.Provider>
-  );
-};
-
-const ThreadListNew: FC = () => {
-  return (
-    <ThreadListPrimitive.New asChild>
-      <Button
-        className="aui-thread-list-new flex items-center justify-start gap-1 rounded-lg px-2.5 py-2 text-start text-foreground hover:bg-muted data-active:bg-muted"
-        variant="ghost"
-      >
-        <PlusIcon />
-        New Chat
-      </Button>
-    </ThreadListPrimitive.New>
   );
 };
 
@@ -273,6 +257,9 @@ const ThreadListSkeleton: FC = () => {
 const ThreadListItem: FC = () => {
 	// Cast to any to work around incomplete AssistantClient typings for the threadListItem client
 	const aui = useAui() as any;
+  const router = useRouter();
+  const pathname = usePathname();
+  const isOnAlfred = pathname?.startsWith("/alfred");
   const [isRenaming, setIsRenaming] = useState(false);
 
   const metaById = useContext(ThreadMetaContext);
@@ -323,6 +310,7 @@ const ThreadListItem: FC = () => {
   }, [aui, id, search]);
   const [shouldRender, setShouldRender] = useState(true);
   const [isHiding, setIsHiding] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   useEffect(() => {
     if (matchesSearch) {
@@ -354,8 +342,37 @@ const ThreadListItem: FC = () => {
           ? "opacity-100 translate-y-0 max-h-24"
           : "opacity-0 -translate-y-1 max-h-0 overflow-hidden"
       }`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
-      <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex-grow px-3 py-2 text-start">
+      <ThreadListItemPrimitive.Trigger
+        className="aui-thread-list-item-trigger flex-grow px-3 py-2 text-start"
+        onClick={async (event) => {
+          // When we're not on the Alfred page, avoid creating/selecting
+          // threads via the runtime. Treat this as a pure navigation
+          // shortcut into Alfred with the existing thread id.
+          if (!isOnAlfred) {
+            const state = aui.threadListItem().getState();
+            const threadId = state.id as string | undefined;
+            if (threadId) {
+              router.push(`/alfred/${encodeURIComponent(threadId)}`);
+            } else {
+              router.push("/alfred");
+            }
+            return;
+          }
+
+          // On the Alfred page, preserve the built-in selection behavior
+          // and ensure the thread is initialized with a stable remoteId.
+          if (typeof aui.threadListItem === "function") {
+            const item = aui.threadListItem();
+            const { remoteId } = await item.initialize();
+            if (remoteId) {
+              router.push(`/alfred/${encodeURIComponent(remoteId)}`);
+            }
+          }
+        }}
+      >
         {isRenaming ? (
           <ThreadListItemRenameInput
             initialValue={aui.threadListItem().getState().title ?? ""}
@@ -384,7 +401,9 @@ const ThreadListItem: FC = () => {
           <ThreadListItemTitle dayLabel={dayLabel} />
         )}
       </ThreadListItemPrimitive.Trigger>
-      <ThreadListItemOverflowMenu onRename={() => setIsRenaming(true)} />
+      {isHovered && (
+        <ThreadListItemOverflowMenu onRename={() => setIsRenaming(true)} />
+      )}
     </ThreadListItemPrimitive.Root>
   );
 };
@@ -463,7 +482,7 @@ const ThreadListItemOverflowMenu: FC<ThreadListItemOverflowMenuProps> = ({
         <TooltipIconButton
           className="aui-thread-list-item-menu mr-2 ml-auto size-6 p-0 text-muted-foreground hover:text-foreground"
           variant="ghost"
-          tooltip="More actions"
+          tooltip="Thread actions"
           onClick={(e) => {
             // Prevent triggering thread selection when opening the menu.
             e.stopPropagation();
@@ -487,7 +506,7 @@ const ThreadListItemOverflowMenu: FC<ThreadListItemOverflowMenuProps> = ({
             }}
           >
             <PencilIcon className="h-3.5 w-3.5" />
-            <span>Rename</span>
+            <span>Rename Thread </span>
           </button>
           <ThreadListItemPrimitive.Archive asChild>
             <button
@@ -498,7 +517,7 @@ const ThreadListItemOverflowMenu: FC<ThreadListItemOverflowMenuProps> = ({
               }}
             >
               <ArchiveIcon className="h-3.5 w-3.5" />
-              <span>Archive</span>
+              <span>Archive Thread</span>
             </button>
           </ThreadListItemPrimitive.Archive>
         </div>

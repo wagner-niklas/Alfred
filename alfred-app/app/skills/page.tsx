@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -12,7 +12,6 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
-import { GraphSidebar } from "@/components/graph/graph-sidebar";
 import type { SkillDetail, SkillSummary } from "@/lib/skills/types";
 
 /**
@@ -273,27 +272,25 @@ export default function SkillsPage() {
   const isSaveDisabled = !detail || saving;
 
   return (
-    <div className="flex h-dvh w-full pr-0.5">
-      <GraphSidebar />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 px-4">
-          <SidebarTrigger />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem className="hidden md:block">
-                <BreadcrumbLink asChild>
-                  <Link href="/alfred">Home</Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="hidden md:block" />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Skills</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </header>
+    <>
+      <header className="flex h-16 shrink-0 items-center gap-2 px-4 border-b">
+        <SidebarTrigger />
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem className="hidden md:block">
+              <BreadcrumbLink asChild>
+                <Link href="/alfred">Home</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="hidden md:block" />
+            <BreadcrumbItem>
+              <BreadcrumbPage>Skills</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+      </header>
 
-        <div className="flex h-[calc(100dvh-4rem)] flex-1 overflow-hidden bg-background">
+      <div className="flex h-[calc(100dvh-4rem)] flex-1 overflow-hidden bg-background">
           <aside className="flex w-80 shrink-0 flex-col border-r bg-background/80">
             <div className="border-b px-4 py-4">
               <div className="flex items-start justify-between gap-3">
@@ -429,8 +426,7 @@ export default function SkillsPage() {
               )}
             </div>
           </section>
-        </div>
-      </SidebarInset>
-    </div>
+      </div>
+    </>
   );
 }
