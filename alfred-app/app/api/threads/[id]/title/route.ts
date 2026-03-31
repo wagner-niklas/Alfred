@@ -17,11 +17,24 @@ type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
+// Minimal subset of the Assistant UI message format used for deriving
+// a human-readable thread title. We only care about user messages with
+// text content parts.
+type TextContentPart = {
+  type: "text";
+  text: string;
+};
+
+type TitleSourceMessage = {
+  role: string;
+  content?: TextContentPart[];
+};
+
 export async function POST(req: Request, context: RouteContext) {
   const { userId } = getOrCreateUserId(req);
   const { id } = await context.params;
   const body = await req.json().catch(() => ({}));
-  const { messages } = body as { messages?: any[] };
+  const { messages } = body as { messages?: TitleSourceMessage[] };
 
   let title = "Chat";
 
@@ -29,8 +42,11 @@ export async function POST(req: Request, context: RouteContext) {
     const firstUser = messages.find((m) => m.role === "user");
     if (firstUser && Array.isArray(firstUser.content)) {
       const textParts = firstUser.content
-        .filter((p: any) => p.type === "text" && typeof p.text === "string")
-        .map((p: any) => p.text as string);
+        .filter(
+          (part): part is TextContentPart =>
+            part.type === "text" && typeof part.text === "string",
+        )
+        .map((part) => part.text);
       const combined = textParts.join(" ").trim();
       if (combined) {
         title = combined.length > 15 ? combined.slice(0, 15) + "..." : combined;

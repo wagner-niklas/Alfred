@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 
 import { AppSidebar } from "@/components/alfred/app-sidebar";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
@@ -25,6 +25,8 @@ import type {
 } from "@/lib/db";
 import type { SettingsResponse } from "@/lib/settings/types";
 import { useSettings } from "@/lib/settings/hooks";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 // Local helper type
 type DraftSettings = SettingsResponse | null;
@@ -35,6 +37,18 @@ type UpsertModelRowFn = <K extends keyof ChatModelSettings>(
   field: K,
   value: ChatModelSettings[K],
 ) => void;
+
+// Generate a stable, unique id for a chat model row. This id is persisted in
+// user settings and also used as part of the React key when rendering the
+// list of models.
+function generateChatModelId(): string {
+  return (
+    "model-" +
+    Date.now().toString(36) +
+    "-" +
+    Math.random().toString(36).slice(2, 8)
+  );
+}
 
 // Derive defaults for new chat models from existing settings.
 function deriveModelDefaults(settings: SettingsResponse): ModelSettings {
@@ -125,6 +139,9 @@ function ChatModelRow({ model, index, onChange, onRemove }: ChatModelRowProps) {
             }
           >
             <option value="azure-openai">Azure OpenAI</option>
+            <option value="openai-compatible">
+              OpenAI-compatible (base URL + model)
+            </option>
           </select>
         </div>
 
@@ -134,7 +151,7 @@ function ChatModelRow({ model, index, onChange, onRemove }: ChatModelRowProps) {
             id={`${idPrefix}-baseURL`}
             type="text"
             className="h-9"
-            placeholder="https://...azure.com/openai"
+            placeholder="https://...azure.com/openai or https://api.openai.com/v1"
             value={model.baseURL}
             onChange={(event) =>
               onChange(index, "baseURL", event.target.value.trim())
@@ -144,8 +161,8 @@ function ChatModelRow({ model, index, onChange, onRemove }: ChatModelRowProps) {
       </div>
 
       <p className="text-[10px] text-muted-foreground">
-        Only Azure OpenAI is supported today; additional providers can be added
-        later.
+        Supports Azure OpenAI as well as OpenAI-compatible HTTP endpoints
+        (including proxies) configured via base URL.
       </p>
 
       <div className="grid gap-3 md:grid-cols-3">
@@ -234,7 +251,9 @@ function ChatModelsCard({
 
           {models.map((model, index) => (
             <ChatModelRow
-              key={model.id ?? `model-${index + 1}`}
+              // Use both id and index to ensure React keys remain unique even
+              // if older settings data happens to contain duplicate ids.
+              key={`${model.id}-${index}`}
               model={model}
               index={index}
               onChange={onUpsertRow}
@@ -255,7 +274,9 @@ function ChatModelsCard({
   );
 }
 
-export default function SettingsPage() {
+function SettingsPageInner() {
+  const searchParams = useSearchParams();
+  const userIdFromQuery = searchParams?.get("user_id")?.trim() || null;
   const { data, loading, saving, error, saved, update, save } = useSettings();
   const [deletingAll, setDeletingAll] = useState(false);
 
@@ -275,7 +296,7 @@ export default function SettingsPage() {
       const modelDefaults = deriveModelDefaults(base);
       const existing =
         next[index] ?? {
-          id: "model-" + (index + 1),
+          id: generateChatModelId(),
           name: "Chat model " + (index + 1),
           provider: modelDefaults.provider,
           apiKey: modelDefaults.apiKey,
@@ -318,7 +339,7 @@ export default function SettingsPage() {
       const index = prev.length;
       const modelDefaults = deriveModelDefaults(base);
       const next: ChatModelSettings = {
-        id: `model-${index + 1}`,
+        id: generateChatModelId(),
         name: "Chat model " + (index + 1),
         provider: modelDefaults.provider,
         apiKey: modelDefaults.apiKey,
@@ -370,7 +391,7 @@ export default function SettingsPage() {
       return {
         ...base,
         embedding: {
-          provider: "azure-openai",
+          provider: prev?.provider ?? "azure-openai",
           apiKey: prev?.apiKey ?? "",
           apiVersion: prev?.apiVersion ?? "",
           baseURL: prev?.baseURL ?? "",
@@ -471,7 +492,13 @@ export default function SettingsPage() {
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem className="hidden md:block">
-                <BreadcrumbLink href="/alfred">Home</BreadcrumbLink>
+                <BreadcrumbLink asChild>
+                  <Link
+                    href={userIdFromQuery ? `/alfred?user_id=${encodeURIComponent(userIdFromQuery)}` : "/alfred"}
+                  >
+                    Home
+                  </Link>
+                </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator className="hidden md:block" />
               <BreadcrumbItem>
@@ -509,11 +536,30 @@ export default function SettingsPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-2">
+                    <Label htmlFor="embedding-provider">Provider</Label>
+                    <select
+                      id="embedding-provider"
+                      className="h-9 rounded-md border bg-background px-2 text-sm"
+                      value={embedding?.provider ?? "azure-openai"}
+                      onChange={(e) =>
+                        updateEmbeddingField(
+                          "provider",
+                          e.target.value as EmbeddingSettings["provider"],
+                        )
+                      }
+                    >
+                      <option value="azure-openai">Azure OpenAI</option>
+                      <option value="openai-compatible">
+                        OpenAI-compatible (base URL + model)
+                      </option>
+                    </select>
+                  </div>
+                  <div className="grid gap-2">
                     <Label htmlFor="embedding-baseURL">Base URL</Label>
                     <Input
                       id="embedding-baseURL"
                       type="text"
-                      placeholder="https://...azure.com/openai"
+                      placeholder="https://...azure.com/openai or https://api.openai.com/v1"
                       value={embedding?.baseURL ?? ""}
                       onChange={(e) =>
                         updateEmbeddingField("baseURL", e.target.value)
@@ -772,5 +818,19 @@ export default function SettingsPage() {
         </main>
       </SidebarInset>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-dvh w-full items-center justify-center">
+          <p className="text-sm text-muted-foreground">Loading settings…</p>
+        </div>
+      }
+    >
+      <SettingsPageInner />
+    </Suspense>
   );
 }

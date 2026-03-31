@@ -1,7 +1,8 @@
 import { tool, embed } from "ai";
 import { z } from "zod";
 import neo4j from "neo4j-driver";
-import { createAzureClient, getDefaultEmbeddingModel } from "@/lib/azure";
+import { createAzureClient, getDefaultEmbeddingModel } from "@/lib/ai/azure";
+import { createOpenAIClient } from "@/lib/ai/openai";
 import type { EmbeddingSettings, GraphSettings } from "@/lib/db";
 
 const TOP_K = 3;
@@ -53,10 +54,22 @@ function resolveEmbeddingModel(
   if (
     embeddingSettingsFromConfig &&
     embeddingSettingsFromConfig.apiKey &&
-    embeddingSettingsFromConfig.apiVersion &&
     embeddingSettingsFromConfig.baseURL &&
     embeddingSettingsFromConfig.deployment
   ) {
+    // Switch based on the configured embedding provider. This mirrors the
+    // chat model configuration where we support both Azure OpenAI and
+    // OpenAI-compatible HTTP endpoints.
+    if (embeddingSettingsFromConfig.provider === "openai-compatible") {
+      const client = createOpenAIClient({
+        apiKey: embeddingSettingsFromConfig.apiKey,
+        baseURL: embeddingSettingsFromConfig.baseURL,
+        deployment: embeddingSettingsFromConfig.deployment,
+      });
+
+      return client.embedding();
+    }
+
     const client = createAzureClient({
       apiKey: embeddingSettingsFromConfig.apiKey,
       apiVersion: embeddingSettingsFromConfig.apiVersion,

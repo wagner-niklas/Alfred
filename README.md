@@ -24,10 +24,11 @@ Alfred addresses these issues by providing an **open, inspectable reference impl
 - A **semantic knowledge graph explorer** that makes the domain model and its relationships first-class and navigable.
 - A **persistent, multi-thread chat interface** built on Assistant UI, wired to the same semantic layer and data tools
 - A **single, well-defined persistence layer** for chat history (default: local SQLite) that can be replaced with your own database.
+- A **pluggable model abstraction layer** that lets you seamlessly switch between providers (e.g., OpenAI, Azure OpenAI, or local models like Ollama).
 
 It uses natural language understanding, multi source data querying, and reasoning tools to help users explore and analyze structured domain data transparently. While Alfred currently connects to Neo4j, Databricks, and Azure OpenAI, it remains backend agnostic and can integrate other databases, knowledge graphs, or AI engines without changing the core interaction patterns.
 
-Alfred also includes a semantic knowledge store / graph explorer for navigating the domain model and relationships:
+Alfred also includes a **knowledge graph explorer** for navigating your domain model and relationships, a dedicated **skills workspace** for creating and editing capabilities, and a **centralized settings page** where everything can be configured.
 
 ![Knowledge Store graph view](./demo/app-knowledge-store.png)
 
@@ -48,6 +49,7 @@ Alfred helps teams adopt data assistants by making domain knowledge explicit in 
 - **Tool-based Architecture**: Extensible system for adding custom data tools
 - **Microphone Input (Dictation)** (if supported by the browser) and **Image & File Attachments**
 - **Knowledge Graph Explorer**: Visually explore your semantic knowledge graph and inspect relationships between domain entities
+- **Personalization**: Customize Alfred’s behavior with skills managed in your file explorer or custom instructions set via the settings page
 
 ## Technology Stack
 
@@ -63,13 +65,31 @@ Alfred helps teams adopt data assistants by making domain knowledge explicit in 
 
 ## Installation
 
+Install [Node.js](https://nodejs.org/en) and [Docker](https://docs.docker.com/engine/install/). Run afterwards in your terminal:
 
 ```bash
 cd alfred-app
 npm install
 ```
 
-## Environment Setup for Alfred
+## Encryption of Alfred user settings (API keys, tokens, passwords)
+
+Alfred stores per-user configuration (chat models, Databricks, Neo4j, etc.) in a local SQLite database under `alfred-app/data/alfred.sqlite`. To avoid storing secrets like API keys, tokens, and passwords im Klartext, Alfred supports transparent encryption at rest.
+
+- Sensitive settings are stored in the `user_settings` table and can be encrypted with **AES-256-GCM**.
+- Encryption is controlled via a single environment variable in your `alfred-app/.env.local`:
+
+```env
+ALFRED_ENCRYPTION_KEY=...
+```
+
+Requirements and behavior:
+
+- The key must represent **32 bytes (256 Bit)** – recommended format is a 64-character hex string (you can generate one with `openssl rand -hex 32`).
+- When a valid key is set, Alfred encrypts/decrypts all sensitive settings in `user_settings` transparently.
+- If no valid key is configured, the app still works, but secrets are stored as plain JSON in SQLite (only recommended for local development and testing).
+
+## Environment Setup for the Knowledge Store
 
 A .env files are necessary for the creation of the neo4j graph from databricks. When the alfred-app is running, those credentials can be added in the settings page.
 
@@ -92,28 +112,11 @@ DATABRICKS_SCHEMA=your_databricks_schema
 NEO4J_BOLT_URL=bolt://...:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your_password
-
-## Encryption of Alfred user settings (API keys, tokens, passwords)
-
-Alfred stores per-user configuration (chat models, Databricks, Neo4j, etc.) in a local SQLite database under `alfred-app/data/alfred.sqlite`. To avoid storing secrets like API keys, tokens, and passwords im Klartext, Alfred supports transparent encryption at rest.
-
-- Sensitive settings are stored in the `user_settings` table and can be encrypted with **AES-256-GCM**.
-- Encryption is controlled via a single environment variable in your `alfred-app/.env.local`:
-
-```env
-ALFRED_ENCRYPTION_KEY=...
-```
-
-Requirements and behavior:
-
-- The key must represent **32 bytes (256 Bit)** – recommended format is a 64-character hex string (you can generate one with `openssl rand -hex 32`).
-- When a valid key is set, Alfred encrypts/decrypts all sensitive settings in `user_settings` transparently.
-- If no valid key is configured, the app still works, but secrets are stored as plain JSON in SQLite (only recommended for local development and testing).
-```
+``` 
 
 ## Getting started from scratch
 
-If you want to try Alfred and you do not have a concrete Databricks dataset and a generated knowledge graph, you can start with the [Databricks Free Edition](https://www.databricks.com/learn/free-edition). From databricks you get your credentials for your ```.env```:
+If you want to try Alfred and you do not have a concrete Databricks dataset nor a knowledge graph, you can start first with the [Databricks Free Edition](https://www.databricks.com/learn/free-edition). From databricks you get your credentials for your ```.env```:
 
 ``` bash
 DATABRICKS_HOST=....databricks.com
@@ -123,7 +126,7 @@ DATABRICKS_CATALOG=your_databricks_catalog
 DATABRICKS_SCHEMA=your_databricks_schema
 ```
 
-Add then to your ```.env``` the credentials for neo4j knowledge graph (the neo4j will be build in the next step):
+Add then to your ```.env``` the (default) credentials for neo4j knowledge graph (the neo4j will be build in the next step):
 
 ```
 NEO4J_BOLT_URL=bolt://localhost:7687
@@ -131,7 +134,8 @@ NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=password
 ```
 
-Next, we build and run both alfred and neo4j with docker
+Next, we build and run both alfred and neo4j community edition with docker. The Alfred app itself can run without access to the database or the graph.
+
 ```
 cd alfred-app
 docker compose build .
@@ -145,47 +149,32 @@ If you run into package or native module issues (like better-sqlite3), rebuild w
 docker compose build --no-cache
 ```
 
-Access the applications
+Next, access the applications:
 - **Neo4j Browser:** [http://localhost:7474](http://localhost:7474)  
-- **Alfred App:** [http://localhost:3000](http://localhost:3000)
+- **Alfred App:** [http://localhost:8081](http://localhost:8081)
 
 Afterwards, there are a couple of helper notebooks in the `scripts/` folder to integrate databricks data in your Free Edition and to build the knowledge graph.
 
 - `scripts/create_databricks_schema.ipynb`
-  - Use this to **initialize sample data and schema in Databricks**.
+  - Use this to **initialize a sample dataset in Databricks**.
   - This notebook is meant to be **run directly in your Databricks workspace** (e.g. imported into Databricks and executed from there), since it relies on Databricks runtime and connectivity.
 
 - `scripts/create_graph_from_databricks.ipynb`
   - Use this to **build the semantic knowledge graph** from the data stored in Databricks and push it into Neo4j.
   - This is designed to be **run on your local machine** where it can access your Databricks tables and talk to Neo4j.
 
+Finally, go again into the [Alfred App](http://localhost:8081) and add the credentials of your ai model, your embedding model, your neo4j credentials and your databricks workspace. All should be set up now.
+
 In a typical flow you would:
-1. Get started with using Neo4j and Databricks.
+1. Get to know the basics of using Neo4j and Databricks.
 2. If you not have any data in databricks, you open `create_databricks_schema.ipynb` in Databricks and run it to set up the sample schema and data.
 3. Configure your Databricks and Neo4j credentials via environment variables as described above.
 3. Open `create_graph_from_databricks.ipynb` on your local machine and run it to materialize the knowledge graph in Neo4j.
 4. Run Alfred, add credentials in the settings section and start asking questions.
 
-These notebooks are intentionally simple and are meant as a starting point you can fork and adapt to your own schemas, business concepts, and graph modeling conventions.
+Please note: These notebooks are intentionally simple and are meant as a starting point you can fork and adapt to your own schemas, business concepts, and graph modeling conventions.
 
 The core domain **concepts** used in the example knowledge graph live in `scripts/data/concepts.yaml` (with a big acknowledgement to *Kenneth Leungh* for the original concept definitions). If you want to bring your own domain, you can start by tweaking this file – adding, renaming, or removing concepts – and then re-running the graph creation notebook to see how your changes show up in Neo4j and in Alfred's UI.
-
-## Running Alfred Locally
-
-```bash
-cd alfred-app
-npm run dev
-```
-
-Alfred will be available at `http://localhost:3000`.
-
-## Building Alfred for Production
-
-```bash
-cd alfred-app
-npm run build
-npm start
-```
 
 ## Alfred-App Project Structure
 
@@ -199,38 +188,6 @@ npm start
 
 Alfred exposes its main data access paths as **tools** under `lib/tools/`. These tools are wired into the assistant runtime via the Vercel AI SDK and Assistant UI so the model can call them directly.
 
-### Databricks (SQL) tools
-
-- Implementation: `lib/tools/tool_sql_db_query.ts`
-- Environment variables:
-  - `DATABRICKS_HOST`, `DATABRICKS_HTTP_PATH`, `DATABRICKS_TOKEN` (connection details)
-  - `DATABRICKS_CATALOG`, `DATABRICKS_SCHEMA` (default catalog/schema used for qualifying tables)
-
-The tool:
-- Enforces that only **single SELECT/CTE queries** are allowed (no INSERT/UPDATE/DELETE/DDL).
-- Automatically qualifies unqualified tables with `DATABRICKS_CATALOG` and `DATABRICKS_SCHEMA`.
-- Delegates actual execution to `executeDatabricksSQL` in `lib/tools/utils_tools.ts`.
-
-To adapt it to your environment:
-- Set the Databricks variables in `.env.local` to point to your workspace, token, and catalog/schema.
-- If you want to change how queries are executed (e.g., different client or warehouse), update `executeDatabricksSQL` accordingly.
-- If your catalog/schema layout is different, adjust the qualification logic in `tool_sql_db_query.ts` or remove it and fully qualify tables in the prompt and/or tool description.
-
-### Neo4j (graph) tool
-
-- Implementation: `lib/tools/tool_neo4j_query.ts`
-- Environment variables:
-  - `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`
-
-The tool:
-- Creates a shared Neo4j driver and session via the official `neo4j-driver` package.
-- Exposes a single `tool_neo4j_query` that runs arbitrary Cypher and returns records as plain JavaScript objects.
-
-To adapt it:
-- Point `NEO4J_URI`, `NEO4J_USER`, and `NEO4J_PASSWORD` to your database.
-- If you use multiple databases within the same cluster, adjust `getSession(database)` to pick the appropriate Neo4j database, or expose multiple tools with different defaults.
-- If you need stricter query controls (e.g., disallow writes), add validation similar to `tool_sql_db_query.ts`.
-
 ## Using a Personal Database for Chat History
 
 Chat threads and messages are persisted through a single server-side abstraction in `lib/db.ts`. To swap the default SQLite database for your own (e.g. Postgres, MySQL, or a cloud database):
@@ -243,11 +200,7 @@ No changes are required in the Assistant UI integration (`components/alfred/runt
 
 ### Multi-User and Production Setups
 
-The default schema treats all threads as belonging to a single logical user, which is sufficient for local development. For real multi-user deployments:
-
-- **Add a userId column** to the `threads` table (and optionally `messages`) and backfill existing rows with a stable local id (e.g. `"local-dev"`).
-- **Extend the helpers in `lib/db.ts`** to accept a `userId` argument and scope all queries by that id (e.g. `getThreads(userId)`, `createThread(userId, ...)`).
-- **Derive `userId` from auth** in your API routes (e.g. from a session/JWT) in production, or use a fixed `"local-dev"` value during development.
+The default schema treats all threads as belonging to user using a browser based cookie, which is sufficient for local development. For real multi-user deployments, **derive a `userId` from auth** in your API routes (e.g. from a session/JWT) in production, or use a fixed `"local-dev"` value during development.
 
 ## Contributing & Extending Alfred
 

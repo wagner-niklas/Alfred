@@ -7,11 +7,16 @@ import {
 import fs from "fs";
 import path from "path";
 import { getTools } from "@/lib/tools/index";
-import { createAzureClient } from "@/lib/azure";
+import { createAzureClient } from "@/lib/ai/azure";
+import { createOpenAIClient } from "@/lib/ai/openai";
 import { getOrCreateUserId } from "@/lib/user";
 import { getUserSettings } from "@/lib/db";
 
 const maxSteps = 25;
+
+type StreamTextArgs = Parameters<typeof streamText>[0];
+type ChatLanguageModel = StreamTextArgs["model"];
+type ProviderOptions = StreamTextArgs["providerOptions"];
 
 type SkillMetadata = {
   name: string;
@@ -140,27 +145,56 @@ export async function POST(req: Request) {
       "Model settings are missing. Configure them in /settings before using the chat.",
     );
   }
+  
+  // Choose the concrete model implementation based on the configured
+  // provider. Azure OpenAI uses the Azure client, while OpenAI-compatible
+  // endpoints (including proxies) use the OpenAI client with a custom
+  // base URL.
+  let chatModel: ChatLanguageModel | undefined;
+  let providerOptions: ProviderOptions | undefined;
 
-  const modelConfig = {
-    apiKey: model.apiKey,
-    apiVersion: model.apiVersion,
-    baseURL: model.baseURL,
-    deployment: model.deployment,
-  };
+  switch (model.provider) {
+    case "openai-compatible": {
+      const openai = createOpenAIClient({
+        apiKey: model.apiKey,
+        baseURL: model.baseURL,
+        deployment: model.deployment,
+      });
 
-  const azure = createAzureClient(modelConfig);
+      chatModel = openai.chat;
+      providerOptions = undefined;
+      break;
+    }
+    case "azure-openai":
+    default: {
+      const azure = createAzureClient({
+        apiKey: model.apiKey,
+        apiVersion: model.apiVersion,
+        baseURL: model.baseURL,
+        deployment: model.deployment,
+      });
+
+      chatModel = azure.chat;
+      providerOptions = {
+        azure: {
+          reasoningEffort: "low",
+        },
+      };
+      break;
+    }
+  }
+
+  if (!chatModel) {
+    throw new Error(`Unsupported model provider: ${model.provider}`);
+  }
 
   const result = streamText({
-    model: azure.chat,
+    model: chatModel,
     system: ASSISTANT_PROMPT,
     messages: await convertToModelMessages(lastMessages),
     stopWhen: stepCountIs(maxSteps),
     tools: getTools(req),
-    providerOptions: {
-      azure: {
-        reasoningEffort: "low",
-      },
-    },
+    providerOptions,
   });
 
   const response = result.toUIMessageStreamResponse();

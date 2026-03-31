@@ -2,7 +2,7 @@ import { createAzure } from "@ai-sdk/azure";
 
 // Centralised Azure OpenAI client configuration.
 //
-// This module now exposes *factory* functions that build models given a
+// This module exposes factory functions that build models given a
 // configuration object. This allows us to use per-user settings from the
 // database while still supporting environment-variable-based defaults.
 

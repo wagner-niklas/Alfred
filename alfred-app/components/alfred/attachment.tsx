@@ -503,16 +503,19 @@ export const ComposerAddAttachment: FC = () => {
         )}
         {showEmptyEnhanceHint && (
           <div className="aui-composer-enhance-empty-hint absolute -top-9 right-0 z-20 rounded-md border border-border bg-popover px-2 py-1 text-[11px] text-muted-foreground shadow-md">
-            Please write your question first.
+            Please write your prompt first.
           </div>
         )}
         <TooltipIconButton
-          tooltip="Use the knowledge store to enhance my prompt"
+          tooltip="Use the knowledge store to mediate the prompt."
           side="bottom"
           variant="default"
           size="sm"
           className={cn(
-            "aui-composer-enhance ml-1 h-[34px] w-auto rounded-full px-3 text-xs font-medium",
+            // Mobile: perfectly round icon-only button (34x34).
+            // Desktop (md+): pill-shaped button with text label.
+            "aui-composer-enhance ml-1 size-[34px] rounded-full text-xs font-medium",
+            "md:h-[34px] md:w-auto md:px-3",
             "bg-blue-100 hover:bg-blue-200 text-blue-700",
             "dark:bg-blue-900 dark:hover:bg-blue-800 dark:text-blue-100",
             isEnhancing && "opacity-80 cursor-wait aui-composer-enhance-pulse",
@@ -521,8 +524,8 @@ export const ComposerAddAttachment: FC = () => {
           aria-label="Enhance prompt"
           onClick={handleEnhancePrompt}
         >
-          <Wand2Icon className="mr-1.5 h-4 w-4" />
-          <span>Enhance my question</span>
+          <Wand2Icon className="h-4 w-4 md:mr-1.5" />
+          <span className="hidden md:inline">Mediate my prompt</span>
         </TooltipIconButton>
       </div>
       </div>

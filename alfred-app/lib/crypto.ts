@@ -25,7 +25,13 @@ import crypto from "crypto";
 const ENCRYPTION_PREFIX = "enc-v1:";
 const ALGORITHM = "aes-256-gcm";
 
+// Cache the derived key so we don't re-parse the environment variable
+// on every encryption/decryption call.
+let cachedKey: Buffer | null | undefined;
+
 function getKey(): Buffer | null {
+  if (cachedKey !== undefined) return cachedKey;
+
   const raw = process.env.ALFRED_ENCRYPTION_KEY;
 
   if (!raw) {
@@ -36,19 +42,24 @@ function getKey(): Buffer | null {
         "[crypto] ALFRED_ENCRYPTION_KEY is not set; sensitive settings will be stored in plaintext.",
       );
     }
-    return null;
+    cachedKey = null;
+    return cachedKey;
   }
 
   // Accept hex, base64, or raw 32-byte UTF-8 keys to keep local
   // development ergonomics while still enforcing 256-bit key size.
   if (/^[0-9a-fA-F]{64}$/.test(raw)) {
-    return Buffer.from(raw, "hex");
+    cachedKey = Buffer.from(raw, "hex");
+    return cachedKey;
   }
 
   if (/^[A-Za-z0-9+/=]+$/.test(raw)) {
     try {
       const buf = Buffer.from(raw, "base64");
-      if (buf.length === 32) return buf;
+      if (buf.length === 32) {
+        cachedKey = buf;
+        return cachedKey;
+      }
     } catch {
       // Fall through to UTF-8 handling below.
     }
@@ -56,15 +67,22 @@ function getKey(): Buffer | null {
 
   const utf8 = Buffer.from(raw, "utf8");
   if (utf8.length === 32) {
-    return utf8;
+    cachedKey = utf8;
+    return cachedKey;
   }
 
   console.error(
     "[crypto] ALFRED_ENCRYPTION_KEY must represent 32 bytes (hex, base64, or utf-8); falling back to plaintext storage.",
   );
-  return null;
+  cachedKey = null;
+  return cachedKey;
 }
-
+/**
+ * Encrypt a JSON-serialisable value using AES-256-GCM.
+ *
+ * When no valid ALFRED_ENCRYPTION_KEY is configured, this returns
+ * plaintext JSON as a best-effort fallback to preserve existing data.
+ */
 export function encryptJson(value: unknown): string {
   const json = JSON.stringify(value ?? null);
   const key = getKey();
@@ -80,7 +98,14 @@ export function encryptJson(value: unknown): string {
   const payload = Buffer.concat([iv, tag, ciphertext]).toString("base64");
   return `${ENCRYPTION_PREFIX}${payload}`;
 }
-
+/**
+ * Decrypt a value previously produced by encryptJson.
+ *
+ * - Returns null for null/empty inputs.
+ * - Transparently supports legacy plaintext JSON values (no prefix).
+ * - Throws when an encrypted value is encountered but the
+ *   ALFRED_ENCRYPTION_KEY is missing or invalid.
+ */
 export function decryptJson<T>(stored: string | null): T | null {
   if (!stored) return null;
 

@@ -5,38 +5,16 @@ import { decryptJson, encryptJson } from "@/lib/crypto";
 
 // Server-side SQLite database setup for thread & message persistence.
 // This file must only be imported from server-side code (e.g. route handlers).
-//
-// Multi-user note:
-// -----------------
-// The current schema is intentionally user-agnostic and treats all threads as
-// belonging to a single logical user. For production or shared deployments,
-// you will typically want to associate each thread (and optionally message)
-// with a concrete userId derived from your auth system.
-//
-// A minimal evolution path is:
-//   1. Add a userId column to the threads table, and optionally messages:
-//      ALTER TABLE threads ADD COLUMN userId TEXT NOT NULL DEFAULT 'local-dev';
-//   2. Backfill existing rows with a stable local user id (e.g. "local-dev").
-//   3. Change the functions below to accept a userId argument and scope all
-//      queries by that userId.
-//
-// Example future signatures (not used by the current code):
-//   getThreads(userId: string): ThreadRecord[];
-//   createThread(userId: string, id?: string, title?: string): ThreadRecord;
-//   updateThread(userId: string, id: string, updates: Partial<Pick<ThreadRecord, "title" | "archived" >>): void;
-//   deleteThread(userId: string, id: string): void;
-//   getMessages(userId: string, threadId: string): MessageRecord[];
-//   appendMessage(userId: string, message: MessageRecord): void;
-//
-// In local development you can hard-code a constant userId ("local-dev"); in
-// production you would derive it from the authenticated user/session in your
-// API routes and pass it into these helpers.
 
 const dbFilePath = path.join(process.cwd(), "data", "alfred.sqlite");
 
 // Ensure the data directory exists
 fs.mkdirSync(path.dirname(dbFilePath), { recursive: true });
 
+/**
+ * Singleton better-sqlite3 connection used by the server to persist
+ * threads, messages, and per-user settings.
+ */
 export const db = new Database(dbFilePath);
 
 // Basic pragmas for better concurrency & safety
@@ -142,11 +120,16 @@ export type MessageRecord = {
 
 // Per-user configuration ----------------------------------------------------
 
-export type ModelProvider = "azure-openai" | "anthropic";
+export type ModelProvider =
+  | "azure-openai"
+  | "openai-compatible"
+  | "anthropic";
 
 export type ModelSettings = {
   // Model provider. Initially we supported only Azure OpenAI, but this union
-  // now also allows Anthropic while keeping the stored schema stable.
+  // now also allows additional providers such as OpenAI-compatible HTTP
+  // endpoints (including self-hosted / proxy setups) and Anthropic while
+  // keeping the stored schema stable.
   provider: ModelProvider;
   // Common fields across providers. For Azure OpenAI these map directly to
   // the Azure configuration. For Anthropic, "deployment" is used to store
@@ -170,8 +153,13 @@ export type ChatModelSettings = ModelSettings & {
   isDefault?: boolean;
 };
 
+// Embedding configuration. We currently support Azure OpenAI and
+// OpenAI-compatible HTTP endpoints for embeddings.
+export type EmbeddingProvider =
+  Extract<ModelProvider, "azure-openai" | "openai-compatible">;
+
 export type EmbeddingSettings = {
-  provider: "azure-openai";
+  provider: EmbeddingProvider;
   apiKey: string;
   apiVersion: string;
   baseURL: string;
@@ -219,9 +207,14 @@ export type UserSettings = {
   updatedAt?: string;
 };
 
+/**
+ * Fetch decrypted user settings for the given user id.
+ *
+ * Returns `null` when no settings row exists yet.
+ */
 export function getUserSettings(userId: string): UserSettings | null {
   const row = db
-    .prepare<[], any>(
+    .prepare(
       "SELECT userId, model_config, models_config, embedding_config, graph_config, databricks_config, additional_instructions, createdAt, updatedAt FROM user_settings WHERE userId = ?",
     )
     .get(userId);
@@ -252,6 +245,13 @@ export function getUserSettings(userId: string): UserSettings | null {
   };
 }
 
+/**
+ * Insert or update the settings row for a given user.
+ *
+ * - Merges partial updates with any existing row.
+ * - Keeps the legacy single `model` field in sync with the default
+ *   entry in `models[]` when present.
+ */
 export function upsertUserSettings(
   userId: string,
   settings: Partial<
@@ -320,7 +320,7 @@ export function upsertUserSettings(
 
   db.prepare(
     `INSERT INTO user_settings (userId, model_config, models_config, embedding_config, graph_config, databricks_config, additional_instructions, createdAt, updatedAt)
-     VALUES (@userId, @model_config, @models_config, @embedding_config, @graph_config, @databricks_config, @additional_instructions, @createdAt, @updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(userId) DO UPDATE SET
        model_config = excluded.model_config,
        models_config = excluded.models_config,
@@ -329,26 +329,27 @@ export function upsertUserSettings(
        databricks_config = excluded.databricks_config,
        additional_instructions = excluded.additional_instructions,
        updatedAt = excluded.updatedAt`,
-  ).run({
-    userId: merged.userId,
-    model_config: merged.model ? encryptJson(merged.model) : null,
-    models_config: merged.models ? encryptJson(merged.models) : null,
-    embedding_config: merged.embedding ? encryptJson(merged.embedding) : null,
-    graph_config: merged.graph ? encryptJson(merged.graph) : null,
-    databricks_config: merged.databricks
-      ? encryptJson(merged.databricks)
-      : null,
-    additional_instructions: merged.additionalInstructions ?? null,
-    createdAt: existing ? existing.createdAt ?? now : now,
-    updatedAt: now,
-  } as any);
+  ).run(
+    merged.userId,
+    merged.model ? encryptJson(merged.model) : null,
+    merged.models ? encryptJson(merged.models) : null,
+    merged.embedding ? encryptJson(merged.embedding) : null,
+    merged.graph ? encryptJson(merged.graph) : null,
+    merged.databricks ? encryptJson(merged.databricks) : null,
+    merged.additionalInstructions ?? null,
+    existing ? existing.createdAt ?? now : now,
+    now,
+  );
 
   return merged;
 }
 
+/**
+ * Return all threads for the given user, ordered by most recently updated.
+ */
 export function getThreads(userId: string): ThreadRecord[] {
   const rows = db
-    .prepare<[], any>(
+    .prepare(
       "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE userId = ? ORDER BY updatedAt DESC",
     )
     .all(userId);
@@ -363,6 +364,13 @@ export function getThreads(userId: string): ThreadRecord[] {
   }));
 }
 
+/**
+ * Create a thread for the given user.
+ *
+ * If an id is provided and an existing legacy thread with that id belongs
+ * to the special "local-dev" user, it will be migrated to the new user
+ * instead of creating a duplicate row.
+ */
 export function createThread(
   userId: string,
   id?: string,
@@ -377,7 +385,7 @@ export function createThread(
   ).run(threadId, userId, threadTitle, now, now);
 
   let row = db
-    .prepare<[], any>(
+    .prepare(
       "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE id = ? AND userId = ?",
     )
     .get(threadId, userId);
@@ -386,7 +394,7 @@ export function createThread(
   // with the legacy 'local-dev' user, migrate it to the current userId.
   if (!row) {
     const legacyRow = db
-      .prepare<[], any>(
+      .prepare(
         "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE id = ?",
       )
       .get(threadId);
@@ -397,7 +405,7 @@ export function createThread(
       ).run(userId, threadId);
 
       row = db
-        .prepare<[], any>(
+        .prepare(
           "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE id = ? AND userId = ?",
         )
         .get(threadId, userId);
@@ -427,6 +435,11 @@ export function createThread(
   };
 }
 
+/**
+ * Update a thread's title and/or archived flag for a given user.
+ *
+ * A missing row is treated as a no-op.
+ */
 export function updateThread(
   userId: string,
   id: string,
@@ -434,7 +447,7 @@ export function updateThread(
 ): void {
   const now = new Date().toISOString();
   const existing = db
-    .prepare<[], any>(
+    .prepare(
       "SELECT id, title, archived FROM threads WHERE id = ? AND userId = ?",
     )
     .get(id, userId);
@@ -455,15 +468,16 @@ export function updateThread(
   ).run(title, archived ? 1 : 0, now, id, userId);
 }
 
+/**
+ * Delete a single thread and its messages (via ON DELETE CASCADE).
+ */
 export function deleteThread(userId: string, id: string): void {
-  db
-    .prepare("DELETE FROM threads WHERE id = ? AND userId = ?")
-    .run(id, userId);
+  db.prepare("DELETE FROM threads WHERE id = ? AND userId = ?").run(id, userId);
 }
 
 export function getMessages(userId: string, threadId: string): MessageRecord[] {
   const rows = db
-    .prepare<[], any>(
+    .prepare(
       `SELECT m.id, m.threadId, m.role, m.content, m.createdAt
        FROM messages m
        JOIN threads t ON t.id = m.threadId
@@ -481,15 +495,18 @@ export function getMessages(userId: string, threadId: string): MessageRecord[] {
   }));
 }
 
+/**
+ * Append (or upsert) a message for a thread owned by the given user.
+ *
+ * If the thread does not belong to the user, the call is a no-op.
+ */
 export function appendMessage(
   userId: string,
   message: MessageRecord,
 ): void {
   // Ensure the thread belongs to the given user before appending
   const thread = db
-    .prepare<[], any>(
-      "SELECT id FROM threads WHERE id = ? AND userId = ?",
-    )
+    .prepare("SELECT id FROM threads WHERE id = ? AND userId = ?")
     .get(message.threadId, userId);
 
   if (!thread) return;
@@ -517,9 +534,7 @@ export function deleteMessagesByThreadId(
 ): void {
   // Only delete messages for threads owned by this user
   const thread = db
-    .prepare<[], any>(
-      "SELECT id FROM threads WHERE id = ? AND userId = ?",
-    )
+    .prepare("SELECT id FROM threads WHERE id = ? AND userId = ?")
     .get(threadId, userId);
 
   if (!thread) return;
