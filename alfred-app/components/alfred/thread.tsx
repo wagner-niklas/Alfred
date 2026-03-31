@@ -303,7 +303,7 @@ const Composer: FC<ComposerProps> = ({
     >
       <ThreadScrollToBottom />
       <ComposerPrimitive.Root
-        className="aui-composer-root group/input-group relative flex w-full flex-col rounded-3xl border border-input bg-background px-1 pt-2 shadow-xs transition-[color,box-shadow] outline-none has-[textarea:focus-visible]:border-ring has-[textarea:focus-visible]:ring-[3px] has-[textarea:focus-visible]:ring-ring/50 dark:bg-background"
+        className="aui-composer-root group/input-group relative flex w-full flex-col rounded-3xl border border-input bg-card px-1 pt-2 shadow-xs transition-[color,box-shadow] outline-none has-[textarea:focus-visible]:border-ring has-[textarea:focus-visible]:ring-[3px] has-[textarea:focus-visible]:ring-ring/50 dark:bg-card"
         onSubmitCapture={handleSubmitCapture}
       >
         <ComposerAttachments />
