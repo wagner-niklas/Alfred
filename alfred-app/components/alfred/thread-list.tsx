@@ -310,6 +310,7 @@ const ThreadListItem: FC = () => {
   }, [aui, id, search]);
   const [shouldRender, setShouldRender] = useState(true);
   const [isHiding, setIsHiding] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   useEffect(() => {
     if (matchesSearch) {
@@ -341,6 +342,8 @@ const ThreadListItem: FC = () => {
           ? "opacity-100 translate-y-0 max-h-24"
           : "opacity-0 -translate-y-1 max-h-0 overflow-hidden"
       }`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       <ThreadListItemPrimitive.Trigger
         className="aui-thread-list-item-trigger flex-grow px-3 py-2 text-start"
@@ -398,7 +401,9 @@ const ThreadListItem: FC = () => {
           <ThreadListItemTitle dayLabel={dayLabel} />
         )}
       </ThreadListItemPrimitive.Trigger>
-      <ThreadListItemOverflowMenu onRename={() => setIsRenaming(true)} />
+      {isHovered && (
+        <ThreadListItemOverflowMenu onRename={() => setIsRenaming(true)} />
+      )}
     </ThreadListItemPrimitive.Root>
   );
 };
