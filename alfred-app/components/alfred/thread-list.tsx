@@ -18,12 +18,18 @@ import {
   PlusIcon,
   Search as SearchIcon,
   CircleX as ClearIcon,
+  MoreHorizontal as EllipsisIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
 
 type ThreadMetaRecord = {
   id: string;
@@ -378,8 +384,7 @@ const ThreadListItem: FC = () => {
           <ThreadListItemTitle dayLabel={dayLabel} />
         )}
       </ThreadListItemPrimitive.Trigger>
-      <ThreadListItemRename onClick={() => setIsRenaming(true)} />
-      <ThreadListItemArchive />
+      <ThreadListItemOverflowMenu onRename={() => setIsRenaming(true)} />
     </ThreadListItemPrimitive.Root>
   );
 };
@@ -445,37 +450,59 @@ const ThreadListItemRenameInput: FC<ThreadListItemRenameInputProps> = ({
     />
   );
 };
-
-type ThreadListItemRenameProps = {
-  onClick: () => void;
+type ThreadListItemOverflowMenuProps = {
+  onRename: () => void;
 };
 
-const ThreadListItemRename: FC<ThreadListItemRenameProps> = ({ onClick }) => {
+const ThreadListItemOverflowMenu: FC<ThreadListItemOverflowMenuProps> = ({
+  onRename,
+}) => {
   return (
-    <TooltipIconButton
-      className="aui-thread-list-item-rename size-4 p-0 text-foreground hover:text-primary"
-      variant="ghost"
-      tooltip="Rename chat"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-    >
-      <PencilIcon />
-    </TooltipIconButton>
-  );
-};
-
-const ThreadListItemArchive: FC = () => {
-  return (
-    <ThreadListItemPrimitive.Archive asChild>
-      <TooltipIconButton
-        className="aui-thread-list-item-archive mr-3 ml-auto size-4 p-0 text-foreground hover:text-primary"
-        variant="ghost"
-        tooltip="Archieve chat"
+    <Popover>
+      <PopoverTrigger asChild>
+        <TooltipIconButton
+          className="aui-thread-list-item-menu mr-2 ml-auto size-6 p-0 text-muted-foreground hover:text-foreground"
+          variant="ghost"
+          tooltip="More actions"
+          onClick={(e) => {
+            // Prevent triggering thread selection when opening the menu.
+            e.stopPropagation();
+          }}
+        >
+          <EllipsisIcon className="h-4 w-4" />
+        </TooltipIconButton>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        side="bottom"
+        className="aui-thread-list-item-menu-content w-40 p-1"
       >
-        <ArchiveIcon />
-      </TooltipIconButton>
-    </ThreadListItemPrimitive.Archive>
+        <div className="flex flex-col gap-0.5">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1 text-xs text-foreground hover:bg-muted"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRename();
+            }}
+          >
+            <PencilIcon className="h-3.5 w-3.5" />
+            <span>Rename</span>
+          </button>
+          <ThreadListItemPrimitive.Archive asChild>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1 text-xs text-foreground hover:bg-muted"
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              <ArchiveIcon className="h-3.5 w-3.5" />
+              <span>Archive</span>
+            </button>
+          </ThreadListItemPrimitive.Archive>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };

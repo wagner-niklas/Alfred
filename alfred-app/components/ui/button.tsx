@@ -53,6 +53,12 @@ function Button({
       data-slot="button"
       data-variant={variant}
       data-size={size}
+      // Some upstream components (e.g. @assistant-ui/react primitives)
+      // may compute attributes like `disabled` differently between the
+      // server render and the first client render. Suppress hydration
+      // warnings for these benign mismatches to keep the console clean
+      // while preserving correct client behavior.
+      suppressHydrationWarning
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

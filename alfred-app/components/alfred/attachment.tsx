@@ -2,7 +2,7 @@
 
 import { PropsWithChildren, useEffect, useState, type FC } from "react";
 import Image from "next/image";
-import { XIcon, Paperclip, FileText, MicIcon, SquareIcon, Wand2Icon } from "lucide-react";
+import { XIcon, Paperclip, FileText, MicIcon, SquareIcon, Wand2Icon, SparklesIcon } from "lucide-react";
 import {
   AttachmentPrimitive,
   ComposerPrimitive,
@@ -23,6 +23,10 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import {
+  ModelSelector,
+  type ModelOption,
+} from "@/components/assistant-ui/model-selector";
 import { cn, getCookie } from "@/lib/utils";
 
 const useSpeechRecognitionSupported = () => {
@@ -256,6 +260,122 @@ export const ComposerAddAttachment: FC = () => {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [showEmptyEnhanceHint, setShowEmptyEnhanceHint] = useState(false);
 
+  type SettingsResponse = {
+    // Effective default model (derived on the server). Kept for backwards
+    // compatibility and as a fallback when no models list is present.
+    model?: {
+      deployment?: string;
+      baseURL?: string;
+      provider?: string;
+    } | null;
+    // Full list of configured chat models from the Settings page. We only
+    // depend on the small subset of fields we actually need for the
+    // selector UI.
+    models?:
+      | {
+          id?: string;
+          name?: string;
+          provider?: string;
+          baseURL?: string;
+          apiVersion?: string;
+          deployment?: string;
+        }[]
+      | null;
+  };
+
+  // Model options are derived from the current user's settings so that
+  // the selector only exposes models they have configured.
+  const [modelOptions, setModelOptions] = useState<ModelOption[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadModelOptions() {
+      try {
+        const res = await fetch("/api/settings");
+        if (!res.ok) {
+          console.error("Failed to load settings for model selector", res.status);
+          return;
+        }
+
+        const data = (await res.json()) as SettingsResponse;
+
+        if (cancelled) return;
+
+        const options: ModelOption[] = [];
+
+        // Prefer the explicit list of configured chat models when present.
+        if (data.models && data.models.length > 0) {
+          data.models.forEach((m, index) => {
+            const providerLabel = m.provider ?? "azure-openai";
+            const deployment = m.deployment ?? "";
+
+            // Show the deployment name prominently in the selector so
+            // users can easily map options to their configured models.
+            const displayName = deployment || m.name || `Chat model ${index + 1}`;
+
+            options.push({
+              // Prefer an explicit id when present, otherwise fall back to
+              // deployment, and finally to a stable synthetic id.
+              id: m.id ?? deployment ?? `model-${index + 1}`,
+              name: displayName,
+              description: deployment
+                ? `${providerLabel} · ${deployment}`
+                : providerLabel,
+              icon: <SparklesIcon />,
+            });
+          });
+        } else if (data.model) {
+          // Backwards-compatible fallback: derive a single option from the
+          // effective default model.
+          const deployment = data.model.deployment || "default";
+          const providerLabel = data.model.provider ?? "azure-openai";
+
+          options.push({
+            id: deployment,
+            // Use the deployment name instead of a generic label.
+            name: deployment,
+            description: `${providerLabel} · ${deployment}`,
+            icon: <SparklesIcon />,
+          });
+        }
+
+        // If no usable model configuration exists (e.g. new user), expose a
+        // disabled placeholder option so the selector is still visible and
+        // clearly instructs the user to configure a model first.
+        if (options.length === 0) {
+          options.push({
+            id: "no-model-configured",
+            name: "No model configured",
+            description: "Configure a chat model in Settings first",
+            disabled: true,
+          });
+        }
+
+        setModelOptions(options);
+      } catch (error) {
+        if (cancelled) return;
+        console.error("Error loading settings for model selector", error);
+        // On error, still show a disabled placeholder so new users understand
+        // they must configure a model.
+        setModelOptions([
+          {
+            id: "no-model-configured",
+            name: "No model configured",
+            description: "Configure a chat model in Settings first",
+            disabled: true,
+          },
+        ]);
+      }
+    }
+
+    void loadModelOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const unsupportedTooltip =
     "SpeechRecognition is not supported in this browser. Try using Chrome, Edge, or Safari.";
 
@@ -371,20 +491,31 @@ export const ComposerAddAttachment: FC = () => {
         </ComposerPrimitive.StopDictation>
       </ComposerPrimitive.If>
 
-      {/* Enhance prompt button */}
-      <div className="relative flex items-center">
+      {/* Enhance prompt button + model selector (when configured) */}
+      <div className="relative flex items-center gap-2">
+        {modelOptions && modelOptions.length > 0 && (
+          <ModelSelector
+            models={modelOptions}
+            size="sm"
+            variant="muted"
+            contentClassName="min-w-[220px]"
+          />
+        )}
         {showEmptyEnhanceHint && (
           <div className="aui-composer-enhance-empty-hint absolute -top-9 right-0 z-20 rounded-md border border-border bg-popover px-2 py-1 text-[11px] text-muted-foreground shadow-md">
-            Please write your question first.
+            Please write your prompt first.
           </div>
         )}
         <TooltipIconButton
-          tooltip="Use the knowledge store to enhance my prompt"
+          tooltip="Use the knowledge store to mediate the prompt."
           side="bottom"
           variant="default"
           size="sm"
           className={cn(
-            "aui-composer-enhance ml-1 h-[34px] w-auto rounded-full px-3 text-xs font-medium",
+            // Mobile: perfectly round icon-only button (34x34).
+            // Desktop (md+): pill-shaped button with text label.
+            "aui-composer-enhance ml-1 size-[34px] rounded-full text-xs font-medium",
+            "md:h-[34px] md:w-auto md:px-3",
             "bg-blue-100 hover:bg-blue-200 text-blue-700",
             "dark:bg-blue-900 dark:hover:bg-blue-800 dark:text-blue-100",
             isEnhancing && "opacity-80 cursor-wait aui-composer-enhance-pulse",
@@ -393,8 +524,8 @@ export const ComposerAddAttachment: FC = () => {
           aria-label="Enhance prompt"
           onClick={handleEnhancePrompt}
         >
-          <Wand2Icon className="mr-1.5 h-4 w-4" />
-          <span>Enhance my question</span>
+          <Wand2Icon className="h-4 w-4 md:mr-1.5" />
+          <span className="hidden md:inline">Mediate my prompt</span>
         </TooltipIconButton>
       </div>
       </div>

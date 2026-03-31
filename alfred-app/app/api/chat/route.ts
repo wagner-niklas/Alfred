@@ -1,4 +1,3 @@
-import { createAzure } from "@ai-sdk/azure";
 import {
   streamText,
   UIMessage,
@@ -8,17 +7,16 @@ import {
 import fs from "fs";
 import path from "path";
 import { getTools } from "@/lib/tools/index";
-
-export const azure = createAzure({
-  apiKey: process.env.AZURE_OPENAI_API_KEY!,
-  apiVersion: process.env.AZURE_OPENAI_API_VERSION!,
-  baseURL: process.env.AZURE_OPENAI_BASE_URL!,
-  useDeploymentBasedUrls: true,
-});
-
-const deployment = process.env.AZURE_OPENAI_DEPLOYMENT!;
+import { createAzureClient } from "@/lib/ai/azure";
+import { createOpenAIClient } from "@/lib/ai/openai";
+import { getOrCreateUserId } from "@/lib/user";
+import { getUserSettings } from "@/lib/db";
 
 const maxSteps = 25;
+
+type StreamTextArgs = Parameters<typeof streamText>[0];
+type ChatLanguageModel = StreamTextArgs["model"];
+type ProviderOptions = StreamTextArgs["providerOptions"];
 
 type SkillMetadata = {
   name: string;
@@ -26,12 +24,14 @@ type SkillMetadata = {
   path: string;
 };
 
-function loadSkillsSummary(): string {
+async function loadSkillsSummary(): Promise<string> {
   const skillsRoot = path.join(process.cwd(), "mnt/skills");
 
   let dirEntries: fs.Dirent[];
   try {
-    dirEntries = fs.readdirSync(skillsRoot, { withFileTypes: true });
+    dirEntries = await fs.promises.readdir(skillsRoot, {
+      withFileTypes: true,
+    });
   } catch {
     // If the skills directory is missing or unreadable, silently skip adding
     // the skills section to keep the chat route resilient.
@@ -43,13 +43,11 @@ function loadSkillsSummary(): string {
   for (const entry of dirEntries) {
     if (!entry.isDirectory()) continue;
 
-    const skillDir = path.join(skillsRoot, entry.name);
-    const skillFile = path.join(skillDir, "SKILL.md");
-
-    if (!fs.existsSync(skillFile)) continue;
-
     try {
-      const content = fs.readFileSync(skillFile, "utf8");
+      const skillDir = path.join(skillsRoot, entry.name);
+      const skillFile = path.join(skillDir, "SKILL.md");
+
+      const content = await fs.promises.readFile(skillFile, "utf8");
 
       // Parse simple frontmatter block at the top of the file. We expect:
       // ---\n
@@ -102,6 +100,8 @@ function loadSkillsSummary(): string {
 }
 
 export async function POST(req: Request) {
+  const { userId, setCookieHeader } = getOrCreateUserId(req);
+
   const { messages }: { messages: UIMessage[] } = await req.json();
 
   if (!messages || messages.length === 0) {
@@ -110,31 +110,98 @@ export async function POST(req: Request) {
 
   const lastMessages = messages.slice(-5);
 
-  const basePrompt = fs
-    .readFileSync(
+  let basePrompt = (
+    await fs.promises.readFile(
       path.join(process.cwd(), "lib/prompts/assistant-prompt.md"),
       "utf-8",
     )
-    .replace("{{CURRENT_DATE}}", new Date().toISOString().split("T")[0]);
+  ).replace("{{CURRENT_DATE}}", new Date().toISOString().split("T")[0]);
 
-  const skillsSummary = loadSkillsSummary();
-  const ASSISTANT_PROMPT = basePrompt.replace(
+  const skillsSummary = await loadSkillsSummary();
+
+  // Inject available skills summary and user-specific additional instructions
+  // from settings into the base system prompt. Missing values degrade
+  // gracefully to keep the chat route robust.
+  const userSettings = getUserSettings(userId);
+  const additionalInstructions = userSettings?.additionalInstructions ?? null;
+
+  basePrompt = basePrompt.replace(
     "{{AVAILABLE_SKILLS}}",
     skillsSummary || "",
   );
 
+  const ASSISTANT_PROMPT = basePrompt.replace(
+    "{{ADDITIONAL_INSTRUCTIONS}}",
+    additionalInstructions?.trim() || "(none)",
+  );
+
+  // Resolve model configuration strictly from per-user settings stored in
+  // the database. If no model settings exist for this user, we fail fast and
+  // instruct the caller to configure them via the Settings page.
+  const model = userSettings?.model;
+
+  if (!model) {
+    throw new Error(
+      "Model settings are missing. Configure them in /settings before using the chat.",
+    );
+  }
+  
+  // Choose the concrete model implementation based on the configured
+  // provider. Azure OpenAI uses the Azure client, while OpenAI-compatible
+  // endpoints (including proxies) use the OpenAI client with a custom
+  // base URL.
+  let chatModel: ChatLanguageModel | undefined;
+  let providerOptions: ProviderOptions | undefined;
+
+  switch (model.provider) {
+    case "openai-compatible": {
+      const openai = createOpenAIClient({
+        apiKey: model.apiKey,
+        baseURL: model.baseURL,
+        deployment: model.deployment,
+      });
+
+      chatModel = openai.chat;
+      providerOptions = undefined;
+      break;
+    }
+    case "azure-openai":
+    default: {
+      const azure = createAzureClient({
+        apiKey: model.apiKey,
+        apiVersion: model.apiVersion,
+        baseURL: model.baseURL,
+        deployment: model.deployment,
+      });
+
+      chatModel = azure.chat;
+      providerOptions = {
+        azure: {
+          reasoningEffort: "low",
+        },
+      };
+      break;
+    }
+  }
+
+  if (!chatModel) {
+    throw new Error(`Unsupported model provider: ${model.provider}`);
+  }
+
   const result = streamText({
-    model: azure.chat(deployment),
+    model: chatModel,
     system: ASSISTANT_PROMPT,
     messages: await convertToModelMessages(lastMessages),
     stopWhen: stepCountIs(maxSteps),
-    tools: getTools(),
-    providerOptions: {
-      azure: {
-        reasoningEffort: "low",
-      },
-    },
+    tools: getTools(req),
+    providerOptions,
   });
 
-  return result.toUIMessageStreamResponse();
+  const response = result.toUIMessageStreamResponse();
+
+  if (setCookieHeader) {
+    response.headers.set("Set-Cookie", setCookieHeader);
+  }
+
+  return response;
 }
