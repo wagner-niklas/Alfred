@@ -98,7 +98,7 @@ Enclose the index of the relevant search result in brackets at the end of the co
 Each index should be enclosed in its own brackets and never include multiple indices in a single bracket group.
 Do not leave a space between the last word and the citation.
 Cite up to three relevant sources per sentence, choosing the most pertinent search results.
-If the number of citations is at least one, end your final answer with "---" and list the cites.
+If the number of citations is at least one, end your final answer with " --- " and list the cites.
 
 # Additional information
 

@@ -375,7 +375,7 @@ const AssistantActionBar: FC = () => {
     >
       {/* COPY */}
       <ActionBarPrimitive.Copy asChild>
-        <TooltipIconButton tooltip="Kopieren">
+        <TooltipIconButton tooltip="Copy">
           <MessagePrimitive.If copied>
             <CheckIcon />
           </MessagePrimitive.If>
@@ -387,7 +387,7 @@ const AssistantActionBar: FC = () => {
 
       {/* RELOAD */}
       <ActionBarPrimitive.Reload asChild>
-        <TooltipIconButton tooltip="Anfrage wiederholen">
+        <TooltipIconButton tooltip="Rewrite Thread">
           <RefreshCwIcon />
         </TooltipIconButton>
       </ActionBarPrimitive.Reload>
@@ -427,7 +427,7 @@ const UserActionBar: FC = () => {
       className="aui-user-action-bar-root flex flex-col items-end"
     >
       <ActionBarPrimitive.Edit asChild>
-        <TooltipIconButton tooltip="Edit" className="aui-user-action-edit p-4">
+        <TooltipIconButton tooltip="Edit query" className="aui-user-action-edit p-4">
           <PencilIcon />
         </TooltipIconButton>
       </ActionBarPrimitive.Edit>

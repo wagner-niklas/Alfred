@@ -231,7 +231,7 @@ const ThreadListNew: FC = () => {
         variant="ghost"
       >
         <PlusIcon />
-        New Chat
+        New thread
       </Button>
     </ThreadListPrimitive.New>
   );
@@ -463,7 +463,7 @@ const ThreadListItemOverflowMenu: FC<ThreadListItemOverflowMenuProps> = ({
         <TooltipIconButton
           className="aui-thread-list-item-menu mr-2 ml-auto size-6 p-0 text-muted-foreground hover:text-foreground"
           variant="ghost"
-          tooltip="More actions"
+          tooltip="Thread actions"
           onClick={(e) => {
             // Prevent triggering thread selection when opening the menu.
             e.stopPropagation();
@@ -487,7 +487,7 @@ const ThreadListItemOverflowMenu: FC<ThreadListItemOverflowMenuProps> = ({
             }}
           >
             <PencilIcon className="h-3.5 w-3.5" />
-            <span>Rename</span>
+            <span>Rename Thread </span>
           </button>
           <ThreadListItemPrimitive.Archive asChild>
             <button
@@ -498,7 +498,7 @@ const ThreadListItemOverflowMenu: FC<ThreadListItemOverflowMenuProps> = ({
               }}
             >
               <ArchiveIcon className="h-3.5 w-3.5" />
-              <span>Archive</span>
+              <span>Archive Thread</span>
             </button>
           </ThreadListItemPrimitive.Archive>
         </div>

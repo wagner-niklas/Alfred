@@ -2,7 +2,7 @@
 
 import { PropsWithChildren, useEffect, useState, type FC } from "react";
 import Image from "next/image";
-import { XIcon, Paperclip, FileText, MicIcon, SquareIcon, Wand2Icon, SparklesIcon } from "lucide-react";
+import { XIcon, Paperclip, FileText, MicIcon, SquareIcon, Wand2Icon, Telescope } from "lucide-react";
 import {
   AttachmentPrimitive,
   ComposerPrimitive,
@@ -322,7 +322,7 @@ export const ComposerAddAttachment: FC = () => {
               description: deployment
                 ? `${providerLabel} · ${deployment}`
                 : providerLabel,
-              icon: <SparklesIcon />,
+              icon: <Telescope />,
             });
           });
         } else if (data.model) {
@@ -336,7 +336,7 @@ export const ComposerAddAttachment: FC = () => {
             // Use the deployment name instead of a generic label.
             name: deployment,
             description: `${providerLabel} · ${deployment}`,
-            icon: <SparklesIcon />,
+            icon: <Telescope />,
           });
         }
 
@@ -497,7 +497,7 @@ export const ComposerAddAttachment: FC = () => {
           <ModelSelector
             models={modelOptions}
             size="sm"
-            variant="muted"
+            variant="ghost"
             contentClassName="min-w-[220px]"
           />
         )}
