@@ -58,7 +58,6 @@ const embeddingModel = getEmbeddingModel();
 
 export const tool_neo4j_query = () =>
   tool({
-    name: "tool_neo4j_query",
     description:
       "Queries a knowledge graph containing structured metadata about the database (tables, columns, relationships).",
     inputSchema: z.object({

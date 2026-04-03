@@ -3,7 +3,6 @@ import { z } from "zod";
 
 export const tool_thinking_tool = () =>
   tool({
-      name: "tool_thinking_tool",
       description:
         "Tool for strategic reflection on data analysis progress and decision-making.",
       inputSchema: z.object({

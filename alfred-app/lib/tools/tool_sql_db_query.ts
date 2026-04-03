@@ -67,7 +67,6 @@ const qualifyTables = (sql: string) => {
 
 export const tool_sql_db_query = () =>
   tool({
-    name: "tool_sql_db_query",
     description: "Executes a read-only SQL query on the database and returns the results.",
     inputSchema: z.object({
       ent_instructions: z
