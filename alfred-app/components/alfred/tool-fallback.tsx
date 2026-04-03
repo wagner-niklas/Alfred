@@ -1,5 +1,4 @@
 import type { ToolCallMessagePartComponent } from "@assistant-ui/react";
-import { CheckIcon, ChevronDownIcon, Loader2Icon, XCircleIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -64,18 +63,11 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
     >
       <CollapsibleTrigger
         className={cn(
-          "aui-tool-fallback-trigger group/trigger -mb-1 inline-flex max-w-[90%] items-center gap-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground",
+          "aui-tool-fallback-trigger group/trigger -mb-1 inline-flex max-w-[90%] items-center gap-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground",
           isCancelled && "opacity-80",
+          isRunning && !isCancelled && "shimmer text-foreground/60",
         )}
       >
-        {isCancelled ? (
-          <XCircleIcon className="aui-tool-fallback-icon size-3 shrink-0 text-muted-foreground" />
-        ) : isRunning ? (
-          <Loader2Icon className="aui-tool-fallback-icon size-3 shrink-0 animate-spin text-muted-foreground" />
-        ) : (
-          <CheckIcon className="aui-tool-fallback-icon size-3 shrink-0" />
-        )}
-
         <span className="aui-tool-fallback-label flex min-w-0 items-center gap-1 truncate">
           <span
             className={cn(
@@ -83,22 +75,9 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
               isCancelled && "line-through text-muted-foreground",
             )}
           >
-            Tool: <b>{toolName}</b>
+            <b>{toolName}</b>
           </span>
-          {isRunning && (
-            <span className="aui-tool-fallback-running-indicator shrink-0 text-[0.65rem] italic text-muted-foreground/80">
-              running…
-            </span>
-          )}
         </span>
-
-        <ChevronDownIcon
-          className={cn(
-            "aui-tool-fallback-chevron ml-1 size-3 shrink-0 transition-transform duration-200",
-            "group-data-[state=closed]/trigger:-rotate-90",
-            "group-data-[state=open]/trigger:rotate-0",
-          )}
-        />
       </CollapsibleTrigger>
 
       <CollapsibleContent
