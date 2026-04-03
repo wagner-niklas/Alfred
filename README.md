@@ -1,8 +1,12 @@
 # Alfred
-[![Skills](https://img.shields.io/badge/-Agent%20Skills-4c51bf?style=flat-square)](#features)
-[![Knowledge Graph](https://img.shields.io/badge/-Knowledge%20Graph-38a169?style=flat-square)](#domain-adoption-with-semantic-knowledge-graphs)
-[![Text-to-SQL](https://img.shields.io/badge/-Text--to--SQL-ed8936?style=flat-square)](#features)
-[![Reddit Community](https://img.shields.io/badge/r-AlfredAI-FF4500?style=flat-square&logo=reddit&logoColor=white)](https://www.reddit.com/r/AlfredAI/)
+[![Next.js](https://img.shields.io/badge/Assistant%20UI-black?logo=next.js&logoColor=white)](#)
+[![Vercel](https://img.shields.io/badge/Vercel%20AI%20SDK-%23000000.svg?logo=vercel&logoColor=white)](#)
+[![Databricks](https://img.shields.io/badge/Databricks-FF3621?logo=databricks&logoColor=fff)](#)
+[![Neo4J](https://img.shields.io/badge/Neo4j-008CC1?logo=neo4j&logoColor=white)](#)
+[![Claude](https://img.shields.io/badge/Agent%20Skills-D97757?logo=claude&logoColor=fff)](#)
+[![Azure](https://custom-icon-badges.demolab.com/badge/%20Azure%20AI-0089D6?logo=msazure&logoColor=white)](#)
+[![ChatGPT](https://custom-icon-badges.demolab.com/badge/OpenAI%20Compatible-74aa9c?logo=openai&logoColor=white)](#)
+[![Ollama](https://img.shields.io/badge/Ollama-fff?logo=ollama&logoColor=000)](#)
 
 An open, inspectable AI data assistant for working with Agent Skills, semantic knowledge graphs and structured domain data.
 
@@ -76,7 +80,23 @@ npm install
 
 The .env file provides Alfred with credentials for chat, embeddings, and databases. Chat and embedding settings should be configured depending on the provider (Azure or OpenAI). Keep this file private and do not commit it to version control. See `.env.example` and create your `.env.local` within the alfred-app directory. Feel free to user the provider of your choice, from azure to ollama (openai compatible).
 
-A second .env file may be necessary for the creation of the neo4j graph from databricks. When the alfred-app is running, those credentials can be added in the settings page. Currently the .env is limited to Azure but feel free to adapt it similar to the logic in the alfred application.
+```
+# Run Alfred using openai-compatible model, e.g. ollama
+CHAT_PROVIDER=openai
+OPENAI_API_KEY=ollama
+OPENAI_BASE_URL=http://localhost:11434/v1/
+OPENAI_CHAT_MODEL=gpt-oss:20b
+
+# Or run Alfred using any azure deployment
+CHAT_PROVIDER=azure
+AZURE_OPENAI_BASE_URL=https://xxxxxxxx.com/openai/
+AZURE_OPENAI_API_VERSION=xxxx-xx-xx
+AZURE_OPENAI_CHAT_DEPLOYMENT=gpt-5.1
+...
+# Embedding provider, Databricks and Neo4j credentials
+```
+
+A second .env file may be necessary for the creation of the neo4j graph from databricks. When the alfred-app is running, those credentials can be added in the settings page. Currently the .env is **limited to Azure** but feel free to adapt it similar to the logic in the alfred application.
 
 ```env
 # Azure

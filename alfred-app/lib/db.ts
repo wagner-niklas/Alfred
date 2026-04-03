@@ -101,6 +101,28 @@ export type UserSettings = {
   updatedAt?: string;
 };
 
+type ThreadRow = {
+  id: string;
+  userId: string;
+  title: string;
+  archived: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ThreadUpdateRow = {
+  id: string;
+  title: string;
+  archived: number;
+};
+
+type UserSettingsRow = {
+  userId: string;
+  additional_instructions: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 /**
  * Fetch decrypted user settings for the given user id.
  *
@@ -108,7 +130,7 @@ export type UserSettings = {
  */
 export function getUserSettings(userId: string): UserSettings | null {
   const row = db
-    .prepare(
+    .prepare<[string], UserSettingsRow>(
       "SELECT userId, additional_instructions, createdAt, updatedAt FROM user_settings WHERE userId = ?",
     )
     .get(userId);
@@ -116,11 +138,10 @@ export function getUserSettings(userId: string): UserSettings | null {
   if (!row) return null;
 
   return {
-    userId: row.userId as string,
-    additionalInstructions:
-      (row.additional_instructions as string | null) ?? null,
-    createdAt: row.createdAt as string | undefined,
-    updatedAt: row.updatedAt as string | undefined,
+    userId: row.userId,
+    additionalInstructions: row.additional_instructions ?? null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 
@@ -174,18 +195,18 @@ export function upsertUserSettings(
  */
 export function getThreads(userId: string): ThreadRecord[] {
   const rows = db
-    .prepare(
+    .prepare<[string], ThreadRow>(
       "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE userId = ? ORDER BY updatedAt DESC",
     )
     .all(userId);
 
   return rows.map((row) => ({
-    id: row.id as string,
-    userId: row.userId as string,
-    title: row.title as string,
+    id: row.id,
+    userId: row.userId,
+    title: row.title,
     archived: Boolean(row.archived),
-    createdAt: row.createdAt as string,
-    updatedAt: row.updatedAt as string,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   }));
 }
 
@@ -210,7 +231,7 @@ export function createThread(
   ).run(threadId, userId, threadTitle, now, now);
 
   let row = db
-    .prepare(
+    .prepare<[string, string], ThreadRow>(
       "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE id = ? AND userId = ?",
     )
     .get(threadId, userId);
@@ -219,7 +240,7 @@ export function createThread(
   // with the legacy 'local-dev' user, migrate it to the current userId.
   if (!row) {
     const legacyRow = db
-      .prepare(
+      .prepare<[string], ThreadRow>(
         "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE id = ?",
       )
       .get(threadId);
@@ -230,7 +251,7 @@ export function createThread(
       ).run(userId, threadId);
 
       row = db
-        .prepare(
+        .prepare<[string, string], ThreadRow>(
           "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE id = ? AND userId = ?",
         )
         .get(threadId, userId);
@@ -244,19 +265,23 @@ export function createThread(
     ).run(threadId, userId, threadTitle, now, now);
 
     row = db
-      .prepare<[], any>(
+      .prepare<[string, string], ThreadRow>(
         "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE id = ? AND userId = ?",
       )
       .get(threadId, userId);
   }
 
+  if (!row) {
+    throw new Error("Failed to create or load thread row");
+  }
+
   return {
-    id: row.id as string,
-    userId: row.userId as string,
-    title: row.title as string,
+    id: row.id,
+    userId: row.userId,
+    title: row.title,
     archived: Boolean(row.archived),
-    createdAt: row.createdAt as string,
-    updatedAt: row.updatedAt as string,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 
@@ -272,7 +297,7 @@ export function updateThread(
 ): void {
   const now = new Date().toISOString();
   const existing = db
-    .prepare(
+    .prepare<[string, string], ThreadUpdateRow>(
       "SELECT id, title, archived FROM threads WHERE id = ? AND userId = ?",
     )
     .get(id, userId);
@@ -282,7 +307,7 @@ export function updateThread(
   const title =
     updates.title !== undefined
       ? updates.title.trim() || "Chat"
-      : (existing.title as string);
+      : existing.title;
   const archived =
     updates.archived !== undefined
       ? updates.archived
@@ -301,8 +326,16 @@ export function deleteThread(userId: string, id: string): void {
 }
 
 export function getMessages(userId: string, threadId: string): MessageRecord[] {
+  type MessageRow = {
+    id: string;
+    threadId: string;
+    role: MessageRecord["role"];
+    content: string;
+    createdAt: string;
+  };
+
   const rows = db
-    .prepare(
+    .prepare<[string, string], MessageRow>(
       `SELECT m.id, m.threadId, m.role, m.content, m.createdAt
        FROM messages m
        JOIN threads t ON t.id = m.threadId
@@ -312,11 +345,11 @@ export function getMessages(userId: string, threadId: string): MessageRecord[] {
     .all(threadId, userId);
 
   return rows.map((row) => ({
-    id: row.id as string,
-    threadId: row.threadId as string,
-    role: row.role as MessageRecord["role"],
-    content: JSON.parse(row.content as string),
-    createdAt: row.createdAt as string,
+    id: row.id,
+    threadId: row.threadId,
+    role: row.role,
+    content: JSON.parse(row.content),
+    createdAt: row.createdAt,
   }));
 }
 
