@@ -14,12 +14,16 @@ function generateId() {
 
 function parseCookies(header: string | null): Record<string, string> {
   if (!header) return {};
+
   return header.split(";").reduce<Record<string, string>>((acc, part) => {
     const [name, ...rest] = part.split("=");
     if (!name) return acc;
+
     const key = name.trim();
     const value = rest.join("=").trim();
+
     if (!key) return acc;
+
     acc[key] = decodeURIComponent(value);
     return acc;
   }, {});
@@ -45,4 +49,20 @@ export function getOrCreateUserId(
   )}; Path=/; Max-Age=${ONE_YEAR}; HttpOnly; SameSite=Lax`;
 
   return { userId, setCookieHeader };
+}
+
+/**
+ * Convenience helper to attach a Set-Cookie header (when present) to a
+ * Response or NextResponse instance. This keeps cookie handling consistent
+ * across API routes while avoiding duplicate header logic.
+ */
+export function attachSetCookieHeader<T extends Response>(
+  response: T,
+  setCookieHeader?: string,
+): T {
+  if (setCookieHeader) {
+    response.headers.set("Set-Cookie", setCookieHeader);
+  }
+
+  return response;
 }

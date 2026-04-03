@@ -6,9 +6,11 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function getCookie(name: string) {
+  if (typeof document === "undefined") return undefined;
+
   const value = document.cookie
     .split("; ")
-    .find(row => row.startsWith(name + "="))
+    .find((row) => row.startsWith(`${name}=`))
     ?.split("=")[1];
 
   return value ? decodeURIComponent(value) : undefined;

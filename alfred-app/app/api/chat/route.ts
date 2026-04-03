@@ -1,107 +1,68 @@
+import { createAzure } from "@ai-sdk/azure";
+import { createOpenAI } from "@ai-sdk/openai";
 import {
-  streamText,
-  UIMessage,
-  convertToModelMessages,
-  stepCountIs,
+	streamText,
+	UIMessage,
+	convertToModelMessages,
+	stepCountIs,
 } from "ai";
 import fs from "fs";
 import path from "path";
 import { getTools } from "@/lib/tools/index";
-import { createAzureClient } from "@/lib/ai/azure";
-import { createOpenAIClient } from "@/lib/ai/openai";
-import { getOrCreateUserId } from "@/lib/user";
+import { attachSetCookieHeader, getOrCreateUserId } from "@/lib/user";
 import { getUserSettings } from "@/lib/db";
+import { listSkillSummaries } from "@/lib/skills/utils";
+
+const chatProvider = process.env.CHAT_PROVIDER || "azure";
+
+function getChatModel() {
+  if (chatProvider === "azure") {
+    const azure = createAzure({
+      apiKey: process.env.AZURE_OPENAI_API_KEY!,
+      apiVersion: process.env.AZURE_OPENAI_API_VERSION!,
+      baseURL: process.env.AZURE_OPENAI_BASE_URL!,
+      useDeploymentBasedUrls: true,
+    });
+
+    return {
+      model: azure.chat(process.env.AZURE_OPENAI_CHAT_DEPLOYMENT!),
+      provider: "azure" as const,
+    };
+  }
+
+  const openai = createOpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+    baseURL: process.env.OPENAI_BASE_URL,
+  });
+
+  return {
+    model: openai.chat(
+      process.env.OPENAI_CHAT_MODEL || "gpt-4.1-mini"
+    ),
+    provider: "openai" as const,
+  };
+}
+
+const { model, provider } = getChatModel();
 
 const maxSteps = 25;
 
-type StreamTextArgs = Parameters<typeof streamText>[0];
-type ChatLanguageModel = StreamTextArgs["model"];
-type ProviderOptions = StreamTextArgs["providerOptions"];
-
-type SkillMetadata = {
-  name: string;
-  description: string;
-  path: string;
-};
-
 async function loadSkillsSummary(): Promise<string> {
-  const skillsRoot = path.join(process.cwd(), "mnt/skills");
-
-  let dirEntries: fs.Dirent[];
-  try {
-    dirEntries = await fs.promises.readdir(skillsRoot, {
-      withFileTypes: true,
-    });
-  } catch {
-    // If the skills directory is missing or unreadable, silently skip adding
-    // the skills section to keep the chat route resilient.
-    return "";
-  }
-
-  const skills: SkillMetadata[] = [];
-
-  for (const entry of dirEntries) {
-    if (!entry.isDirectory()) continue;
-
-    try {
-      const skillDir = path.join(skillsRoot, entry.name);
-      const skillFile = path.join(skillDir, "SKILL.md");
-
-      const content = await fs.promises.readFile(skillFile, "utf8");
-
-      // Parse simple frontmatter block at the top of the file. We expect:
-      // ---\n
-      // name: ...\n
-      // description: ...\n
-      // license: ...\n
-      // ---
-      const match = content.match(/^---\s*[\r\n]+([\s\S]*?)\r?\n---/);
-      if (!match) continue;
-
-      const frontmatter = match[1];
-      let name = "";
-      let description = "";
-
-      for (const rawLine of frontmatter.split(/\r?\n/)) {
-        const line = rawLine.trim();
-        if (!line || line.startsWith("#")) continue;
-
-        const separatorIndex = line.indexOf(":");
-        if (separatorIndex === -1) continue;
-
-        const key = line.slice(0, separatorIndex).trim();
-        const value = line.slice(separatorIndex + 1).trim();
-
-        if (key === "name") name = value;
-        if (key === "description") description = value;
-      }
-
-      if (!name || !description) continue;
-
-      const relativePath = path
-        .relative(process.cwd(), skillFile)
-        .replace(/\\/g, "/");
-
-      skills.push({ name, description, path: relativePath });
-    } catch {
-      // Ignore malformed or unreadable skill files; continue with others.
-      continue;
-    }
-  }
-
+  const skills = await listSkillSummaries();
   if (skills.length === 0) return "";
 
-  const lines: string[] = skills.map(
-    (skill) =>
-      `- **${skill.name}** — ${skill.description} (file: \`${skill.path}\`)`,
-  );
+  const lines = skills.map((skill) => {
+    const relativePath = path
+      .join("mnt/skills", skill.slug, "SKILL.md")
+      .replace(/\\/g, "/");
+
+    return `- **${skill.name}** — ${skill.description} (file: \`${relativePath}\`)`;
+  });
 
   return lines.join("\n");
 }
 
 export async function POST(req: Request) {
-  const { userId, setCookieHeader } = getOrCreateUserId(req);
-
   const { messages }: { messages: UIMessage[] } = await req.json();
 
   if (!messages || messages.length === 0) {
@@ -110,98 +71,84 @@ export async function POST(req: Request) {
 
   const lastMessages = messages.slice(-5);
 
-  let basePrompt = (
-    await fs.promises.readFile(
+  const basePrompt = fs
+    .readFileSync(
       path.join(process.cwd(), "lib/prompts/assistant-prompt.md"),
       "utf-8",
     )
-  ).replace("{{CURRENT_DATE}}", new Date().toISOString().split("T")[0]);
+    .replace("{{CURRENT_DATE}}", new Date().toISOString().split("T")[0]);
 
   const skillsSummary = await loadSkillsSummary();
 
-  // Inject available skills summary and user-specific additional instructions
-  // from settings into the base system prompt. Missing values degrade
-  // gracefully to keep the chat route robust.
-  const userSettings = getUserSettings(userId);
+	const { userId, setCookieHeader } = getOrCreateUserId(req);
+	const userSettings = getUserSettings(userId);
   const additionalInstructions = userSettings?.additionalInstructions ?? null;
 
-  basePrompt = basePrompt.replace(
-    "{{AVAILABLE_SKILLS}}",
-    skillsSummary || "",
+	const ASSISTANT_PROMPT = basePrompt
+    .replace(
+      "{{ADDITIONAL_INSTRUCTIONS}}",
+      additionalInstructions?.trim() || "(none)")
+    .replace(
+      "{{AVAILABLE_SKILLS}}",
+      skillsSummary || "",
   );
 
-  const ASSISTANT_PROMPT = basePrompt.replace(
-    "{{ADDITIONAL_INSTRUCTIONS}}",
-    additionalInstructions?.trim() || "(none)",
-  );
+	// Convert UI messages from Assistant UI into model messages understood by
+	// the `ai` SDK. For Azure chat models, current SDK versions attempt to
+	// *download* image URLs (including `data:` URLs) before sending them to
+	// the provider, which results in an `AI_DownloadError` like:
+	//
+	//   URL scheme must be http or https, got data:
+	//
+	// To avoid hard failures when using Azure as the chat provider, we
+	// conservatively strip `data:` image parts from the model messages.
+	//
+	// This matches the behavior of the default Assistant UI demo when using
+	// OpenAI (which natively supports inline image data), while keeping the
+	// Alfred app functional with Azure even though the images themselves
+	// won't be sent to the model.
+	const modelMessages = await convertToModelMessages(lastMessages);
 
-  // Resolve model configuration strictly from per-user settings stored in
-  // the database. If no model settings exist for this user, we fail fast and
-  // instruct the caller to configure them via the Settings page.
-  const model = userSettings?.model;
+	const sanitizedMessages =
+		provider === "azure"
+			? modelMessages.map((message: any) => {
+					if (!Array.isArray(message.content)) return message;
 
-  if (!model) {
-    throw new Error(
-      "Model settings are missing. Configure them in /settings before using the chat.",
-    );
-  }
-  
-  // Choose the concrete model implementation based on the configured
-  // provider. Azure OpenAI uses the Azure client, while OpenAI-compatible
-  // endpoints (including proxies) use the OpenAI client with a custom
-  // base URL.
-  let chatModel: ChatLanguageModel | undefined;
-  let providerOptions: ProviderOptions | undefined;
+					const filteredContent = message.content.filter((part: any) => {
+						if (!part || typeof part !== "object") return true;
+						if (part.type !== "image") return true;
+						const url: string | undefined = part.image?.url;
+						// Drop inline base64 image data to avoid AI_DownloadError
+						// in the Azure adapter.
+						if (typeof url === "string" && url.startsWith("data:")) {
+							return false;
+						}
+						return true;
+					});
 
-  switch (model.provider) {
-    case "openai-compatible": {
-      const openai = createOpenAIClient({
-        apiKey: model.apiKey,
-        baseURL: model.baseURL,
-        deployment: model.deployment,
-      });
+					return {
+						...message,
+						content: filteredContent,
+					};
+			  })
+			: modelMessages;
 
-      chatModel = openai.chat;
-      providerOptions = undefined;
-      break;
-    }
-    case "azure-openai":
-    default: {
-      const azure = createAzureClient({
-        apiKey: model.apiKey,
-        apiVersion: model.apiVersion,
-        baseURL: model.baseURL,
-        deployment: model.deployment,
-      });
+	const result = streamText({
+		model,
+		system: ASSISTANT_PROMPT,
+		messages: sanitizedMessages,
+		stopWhen: stepCountIs(maxSteps),
+		tools: getTools(),
+		providerOptions:
+			provider === "azure"
+				? {
+						azure: {
+							reasoningEffort: "low",
+						},
+				  }
+				: undefined,
+	});
 
-      chatModel = azure.chat;
-      providerOptions = {
-        azure: {
-          reasoningEffort: "low",
-        },
-      };
-      break;
-    }
-  }
-
-  if (!chatModel) {
-    throw new Error(`Unsupported model provider: ${model.provider}`);
-  }
-
-  const result = streamText({
-    model: chatModel,
-    system: ASSISTANT_PROMPT,
-    messages: await convertToModelMessages(lastMessages),
-    stopWhen: stepCountIs(maxSteps),
-    tools: getTools(req),
-    providerOptions,
-  });
-
-  const response = result.toUIMessageStreamResponse();
-
-  if (setCookieHeader) {
-    response.headers.set("Set-Cookie", setCookieHeader);
-  }
-
-  return response;
+  const response = await result.toUIMessageStreamResponse();
+  return attachSetCookieHeader(response, setCookieHeader);
 }

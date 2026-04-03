@@ -1,7 +1,6 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
-import { decryptJson, encryptJson } from "@/lib/crypto";
 
 // Server-side SQLite database setup for thread & message persistence.
 // This file must only be imported from server-side code (e.g. route handlers).
@@ -41,18 +40,9 @@ db.exec(`
     FOREIGN KEY (threadId) REFERENCES threads(id) ON DELETE CASCADE
   );
 
-  -- Per-user configuration for models and external connections.
-  --
-  -- The goal is to keep this flexible enough to later support multiple
-  -- models or data sources per user while currently storing a single
-  -- config blob for each category.
+  -- per user config
   CREATE TABLE IF NOT EXISTS user_settings (
     userId TEXT PRIMARY KEY,
-    model_config TEXT,
-    models_config TEXT,
-    embedding_config TEXT,
-    graph_config TEXT,
-    databricks_config TEXT,
     additional_instructions TEXT,
     createdAt TEXT NOT NULL,
     updatedAt TEXT NOT NULL
@@ -72,28 +62,12 @@ if (!hasUserIdColumn) {
   );
 }
 
-// Lightweight migration for older databases created before the
-// embedding_config / models_config columns existed on user_settings.
 const settingsColumns = db.prepare("PRAGMA table_info(user_settings)").all() as {
   name: string;
 }[];
-const hasEmbeddingConfigColumn = settingsColumns.some(
-  (col) => col.name === "embedding_config",
-);
-const hasModelsConfigColumn = settingsColumns.some(
-  (col) => col.name === "models_config",
-);
 const hasAdditionalInstructionsColumn = settingsColumns.some(
   (col) => col.name === "additional_instructions",
 );
-
-if (!hasEmbeddingConfigColumn) {
-  db.exec("ALTER TABLE user_settings ADD COLUMN embedding_config TEXT");
-}
-
-if (!hasModelsConfigColumn) {
-  db.exec("ALTER TABLE user_settings ADD COLUMN models_config TEXT");
-}
 
 if (!hasAdditionalInstructionsColumn) {
   db.exec(
@@ -118,93 +92,35 @@ export type MessageRecord = {
   createdAt: string; // ISO string
 };
 
-// Per-user configuration ----------------------------------------------------
-
-export type ModelProvider =
-  | "azure-openai"
-  | "openai-compatible"
-  | "anthropic";
-
-export type ModelSettings = {
-  // Model provider. Initially we supported only Azure OpenAI, but this union
-  // now also allows additional providers such as OpenAI-compatible HTTP
-  // endpoints (including self-hosted / proxy setups) and Anthropic while
-  // keeping the stored schema stable.
-  provider: ModelProvider;
-  // Common fields across providers. For Azure OpenAI these map directly to
-  // the Azure configuration. For Anthropic, "deployment" is used to store
-  // the model name (e.g. "claude-3.7-sonnet") and apiVersion is currently
-  // unused but kept for forward compatibility.
-  apiKey: string;
-  apiVersion: string;
-  baseURL: string;
-  deployment: string;
-};
-
-// Extended chat model configuration allowing multiple named models per user.
-//
-// "id" is a stable identifier used by the frontend model selector and
-// passed through as the modelName in the Assistant UI model context. The
-// remaining fields mirror ModelSettings so existing callers can derive a
-// concrete Azure configuration from either type.
-export type ChatModelSettings = ModelSettings & {
-  id: string;
-  name: string;
-  isDefault?: boolean;
-};
-
-// Embedding configuration. We currently support Azure OpenAI and
-// OpenAI-compatible HTTP endpoints for embeddings.
-export type EmbeddingProvider =
-  Extract<ModelProvider, "azure-openai" | "openai-compatible">;
-
-export type EmbeddingSettings = {
-  provider: EmbeddingProvider;
-  apiKey: string;
-  apiVersion: string;
-  baseURL: string;
-  deployment: string;
-};
-
-export type GraphSettings = {
-  boltUrl: string;
-  username: string;
-  password: string;
-  /** Optional Neo4j database name; defaults to "neo4j" when omitted. */
-  database?: string | null;
-  /**
-   * Name of the Neo4j vector index used for table embeddings.
-   *
-   * When unset, the application falls back to the environment variable
-   * NEO4J_TABLE_VECTOR_INDEX or the hard-coded default "table_vector_index".
-   */
-  tableVectorIndex?: string | null;
-};
-
-export type DatabricksSettings = {
-  host: string;
-  httpPath: string;
-  token: string;
-  catalog?: string | null;
-  schema?: string | null;
-};
-
 export type UserSettings = {
   userId: string;
-  // Legacy single-model configuration kept for backward compatibility.
-  model?: ModelSettings | null;
-  // Optional list of named chat models. When present, the default chat
-  // model should be derived from the entry with isDefault === true, or
-  // the first entry if none is flagged as default.
-  models?: ChatModelSettings[] | null;
-  embedding?: EmbeddingSettings | null;
-  graph?: GraphSettings | null;
-  databricks?: DatabricksSettings | null;
   additionalInstructions?: string | null;
   // Timestamps are stored in the database but optional in the in-memory
   // representation to keep the type lightweight for most callers.
   createdAt?: string;
   updatedAt?: string;
+};
+
+type ThreadRow = {
+  id: string;
+  userId: string;
+  title: string;
+  archived: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ThreadUpdateRow = {
+  id: string;
+  title: string;
+  archived: number;
+};
+
+type UserSettingsRow = {
+  userId: string;
+  additional_instructions: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 /**
@@ -214,102 +130,42 @@ export type UserSettings = {
  */
 export function getUserSettings(userId: string): UserSettings | null {
   const row = db
-    .prepare(
-      "SELECT userId, model_config, models_config, embedding_config, graph_config, databricks_config, additional_instructions, createdAt, updatedAt FROM user_settings WHERE userId = ?",
+    .prepare<[string], UserSettingsRow>(
+      "SELECT userId, additional_instructions, createdAt, updatedAt FROM user_settings WHERE userId = ?",
     )
     .get(userId);
 
   if (!row) return null;
 
   return {
-    userId: row.userId as string,
-    model: row.model_config
-      ? decryptJson<ModelSettings>(row.model_config as string)
-      : null,
-    models: row.models_config
-      ? decryptJson<ChatModelSettings[]>(row.models_config as string)
-      : null,
-    embedding: row.embedding_config
-      ? decryptJson<EmbeddingSettings>(row.embedding_config as string)
-      : null,
-    graph: row.graph_config
-      ? decryptJson<GraphSettings>(row.graph_config as string)
-      : null,
-    databricks: row.databricks_config
-      ? decryptJson<DatabricksSettings>(row.databricks_config as string)
-      : null,
-    additionalInstructions:
-      (row.additional_instructions as string | null) ?? null,
-    createdAt: row.createdAt as string | undefined,
-    updatedAt: row.updatedAt as string | undefined,
+    userId: row.userId,
+    additionalInstructions: row.additional_instructions ?? null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 
 /**
  * Insert or update the settings row for a given user.
  *
+ * - Only persists the per-user `additionalInstructions` text alongside
+ *   the `userId` and timestamps.
  * - Merges partial updates with any existing row.
- * - Keeps the legacy single `model` field in sync with the default
- *   entry in `models[]` when present.
  */
 export function upsertUserSettings(
   userId: string,
   settings: Partial<
     Pick<
       UserSettings,
-      "model" | "models" | "embedding" | "graph" | "databricks" | "additionalInstructions"
+      "additionalInstructions"
     >
   >,
 ): UserSettings {
   const existing = getUserSettings(userId);
 
-  const nextModels: ChatModelSettings[] | null =
-    settings.models !== undefined
-      ? settings.models ?? null
-      : existing?.models ?? null;
-
-  // Derive the legacy single-model configuration from either the explicit
-  // "model" field or, when available, from the default entry in "models".
-  const modelsSource = nextModels && nextModels.length > 0 ? nextModels : null;
-  const defaultFromModels = modelsSource
-    ? modelsSource.find((m) => m.isDefault) ?? modelsSource[0]
-    : null;
-
-  // When possible, derive a legacy single-model configuration from the
-  // default chat model entry. This keeps older callers (that only know
-  // about `model`) working even as the UI moves to `models[]`.
-  const derivedFromDefault: ModelSettings | null = defaultFromModels
-    ? {
-        provider: defaultFromModels.provider,
-        apiKey: defaultFromModels.apiKey,
-        apiVersion: defaultFromModels.apiVersion,
-        baseURL: defaultFromModels.baseURL,
-        deployment: defaultFromModels.deployment,
-      }
-    : null;
-
-  const mergedModel: ModelSettings | null =
-    settings.model !== undefined
-      // If callers explicitly send `model: null` but also provide a
-      // default in `models`, we still derive a concrete model config
-      // from that default instead of dropping model settings entirely.
-      ? settings.model ?? derivedFromDefault
-      : derivedFromDefault ?? existing?.model ?? null;
 
   const merged: UserSettings = {
     userId,
-    model: mergedModel,
-    models: nextModels,
-    embedding:
-      settings.embedding !== undefined
-        ? settings.embedding
-        : existing?.embedding ?? null,
-    graph:
-      settings.graph !== undefined ? settings.graph : existing?.graph ?? null,
-    databricks:
-      settings.databricks !== undefined
-        ? settings.databricks
-        : existing?.databricks ?? null,
     additionalInstructions:
       settings.additionalInstructions !== undefined
         ? settings.additionalInstructions ?? null
@@ -319,23 +175,13 @@ export function upsertUserSettings(
   const now = new Date().toISOString();
 
   db.prepare(
-    `INSERT INTO user_settings (userId, model_config, models_config, embedding_config, graph_config, databricks_config, additional_instructions, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO user_settings (userId, additional_instructions, createdAt, updatedAt)
+     VALUES (?, ?, ?, ?)
      ON CONFLICT(userId) DO UPDATE SET
-       model_config = excluded.model_config,
-       models_config = excluded.models_config,
-       embedding_config = excluded.embedding_config,
-       graph_config = excluded.graph_config,
-       databricks_config = excluded.databricks_config,
        additional_instructions = excluded.additional_instructions,
        updatedAt = excluded.updatedAt`,
   ).run(
     merged.userId,
-    merged.model ? encryptJson(merged.model) : null,
-    merged.models ? encryptJson(merged.models) : null,
-    merged.embedding ? encryptJson(merged.embedding) : null,
-    merged.graph ? encryptJson(merged.graph) : null,
-    merged.databricks ? encryptJson(merged.databricks) : null,
     merged.additionalInstructions ?? null,
     existing ? existing.createdAt ?? now : now,
     now,
@@ -349,18 +195,18 @@ export function upsertUserSettings(
  */
 export function getThreads(userId: string): ThreadRecord[] {
   const rows = db
-    .prepare(
+    .prepare<[string], ThreadRow>(
       "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE userId = ? ORDER BY updatedAt DESC",
     )
     .all(userId);
 
   return rows.map((row) => ({
-    id: row.id as string,
-    userId: row.userId as string,
-    title: row.title as string,
+    id: row.id,
+    userId: row.userId,
+    title: row.title,
     archived: Boolean(row.archived),
-    createdAt: row.createdAt as string,
-    updatedAt: row.updatedAt as string,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   }));
 }
 
@@ -385,7 +231,7 @@ export function createThread(
   ).run(threadId, userId, threadTitle, now, now);
 
   let row = db
-    .prepare(
+    .prepare<[string, string], ThreadRow>(
       "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE id = ? AND userId = ?",
     )
     .get(threadId, userId);
@@ -394,7 +240,7 @@ export function createThread(
   // with the legacy 'local-dev' user, migrate it to the current userId.
   if (!row) {
     const legacyRow = db
-      .prepare(
+      .prepare<[string], ThreadRow>(
         "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE id = ?",
       )
       .get(threadId);
@@ -405,7 +251,7 @@ export function createThread(
       ).run(userId, threadId);
 
       row = db
-        .prepare(
+        .prepare<[string, string], ThreadRow>(
           "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE id = ? AND userId = ?",
         )
         .get(threadId, userId);
@@ -419,19 +265,23 @@ export function createThread(
     ).run(threadId, userId, threadTitle, now, now);
 
     row = db
-      .prepare<[], any>(
+      .prepare<[string, string], ThreadRow>(
         "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE id = ? AND userId = ?",
       )
       .get(threadId, userId);
   }
 
+  if (!row) {
+    throw new Error("Failed to create or load thread row");
+  }
+
   return {
-    id: row.id as string,
-    userId: row.userId as string,
-    title: row.title as string,
+    id: row.id,
+    userId: row.userId,
+    title: row.title,
     archived: Boolean(row.archived),
-    createdAt: row.createdAt as string,
-    updatedAt: row.updatedAt as string,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 
@@ -447,7 +297,7 @@ export function updateThread(
 ): void {
   const now = new Date().toISOString();
   const existing = db
-    .prepare(
+    .prepare<[string, string], ThreadUpdateRow>(
       "SELECT id, title, archived FROM threads WHERE id = ? AND userId = ?",
     )
     .get(id, userId);
@@ -457,7 +307,7 @@ export function updateThread(
   const title =
     updates.title !== undefined
       ? updates.title.trim() || "Chat"
-      : (existing.title as string);
+      : existing.title;
   const archived =
     updates.archived !== undefined
       ? updates.archived
@@ -476,8 +326,16 @@ export function deleteThread(userId: string, id: string): void {
 }
 
 export function getMessages(userId: string, threadId: string): MessageRecord[] {
+  type MessageRow = {
+    id: string;
+    threadId: string;
+    role: MessageRecord["role"];
+    content: string;
+    createdAt: string;
+  };
+
   const rows = db
-    .prepare(
+    .prepare<[string, string], MessageRow>(
       `SELECT m.id, m.threadId, m.role, m.content, m.createdAt
        FROM messages m
        JOIN threads t ON t.id = m.threadId
@@ -487,11 +345,11 @@ export function getMessages(userId: string, threadId: string): MessageRecord[] {
     .all(threadId, userId);
 
   return rows.map((row) => ({
-    id: row.id as string,
-    threadId: row.threadId as string,
-    role: row.role as MessageRecord["role"],
-    content: JSON.parse(row.content as string),
-    createdAt: row.createdAt as string,
+    id: row.id,
+    threadId: row.threadId,
+    role: row.role,
+    content: JSON.parse(row.content),
+    createdAt: row.createdAt,
   }));
 }
 

@@ -191,7 +191,6 @@ async function readFileWithNumberedLines(
 
 export const tool_fs_view = () =>
   tool({
-    name: "tool_fs_view",
     description:
       "Inspect the filesystem for the assistant. If the input path is a directory, list its contents up to 2 levels deep with file sizes (excluding hidden entries). If the input is a file path, return the file contents with numbered lines. Optionally, provide a [start_line, end_line] view_range (1-based, end=-1 for end of file) to return only a specific slice. When no view_range is given for a large file, the response is truncated from the middle, showing the beginning and end (~16,000 characters total).",
     inputSchema: z.object({

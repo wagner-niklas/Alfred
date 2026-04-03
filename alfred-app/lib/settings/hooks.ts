@@ -77,18 +77,12 @@ export function useSettings() {
 
     try {
       // When no explicit partial payload is provided, derive it from the
-      // in-memory settings state. We intentionally omit the legacy `model`
-      // field here so that the backend can derive it from the default entry
-      // in `models`. This keeps the single-model configuration in sync with
-      // the multi-model UI and avoids persisting stale model settings
-      // (e.g. an old baseURL) when only `models[]` is edited.
-      const payload: SettingsPayload = partial ?? {
-        models: state.data?.models ?? null,
-        embedding: state.data?.embedding ?? null,
-        graph: state.data?.graph ?? null,
-        databricks: state.data?.databricks ?? null,
-        additionalInstructions: state.data?.additionalInstructions ?? null,
-      };
+      // Databricks configuration lives in env / server-side config and is not
+      // persisted per user.
+      const payload: SettingsPayload =
+        partial ?? {
+          additionalInstructions: state.data?.additionalInstructions ?? null,
+        };
 
       const res = await fetch("/api/settings", {
         method: "PUT",
