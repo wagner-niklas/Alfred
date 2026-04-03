@@ -28,7 +28,7 @@ Alfred addresses these issues by providing an **open, inspectable reference impl
 
 It uses natural language understanding, multi source data querying, and reasoning tools to help users explore and analyze structured domain data transparently. While Alfred currently connects to Neo4j, Databricks, and Azure OpenAI, it remains backend agnostic and can integrate other databases, knowledge graphs, or AI engines without changing the core interaction patterns.
 
-Alfred also includes a **knowledge graph explorer** for navigating your domain model and relationships, a dedicated **skills workspace** for creating and editing capabilities, and a **centralized settings page** where everything can be configured.
+Alfred also includes a **knowledge graph explorer** for navigating your domain model and relationships, a dedicated **skills workspace** for creating and editing capabilities, and a **settings page** to customize the prompt on user level.
 
 ![Knowledge Store graph view](./demo/app-knowledge-store.png)
 
@@ -72,26 +72,11 @@ cd alfred-app
 npm install
 ```
 
-## Encryption of Alfred user settings (API keys, tokens, passwords)
-
-Alfred stores per-user configuration (chat models, Databricks, Neo4j, etc.) in a local SQLite database under `alfred-app/data/alfred.sqlite`. To avoid storing secrets like API keys, tokens, and passwords im Klartext, Alfred supports transparent encryption at rest.
-
-- Sensitive settings are stored in the `user_settings` table and can be encrypted with **AES-256-GCM**.
-- Encryption is controlled via a single environment variable in your `alfred-app/.env.local`:
-
-```env
-ALFRED_ENCRYPTION_KEY=...
-```
-
-Requirements and behavior:
-
-- The key must represent **32 bytes (256 Bit)** – recommended format is a 64-character hex string (you can generate one with `openssl rand -hex 32`).
-- When a valid key is set, Alfred encrypts/decrypts all sensitive settings in `user_settings` transparently.
-- If no valid key is configured, the app still works, but secrets are stored as plain JSON in SQLite (only recommended for local development and testing).
-
 ## Environment Setup for the Knowledge Store
 
-A .env files are necessary for the creation of the neo4j graph from databricks. When the alfred-app is running, those credentials can be added in the settings page.
+The .env file provides Alfred with credentials for chat, embeddings, and databases. Chat and embedding settings should be configured depending on the provider (Azure or OpenAI). Keep this file private and do not commit it to version control. See `.env.example` and create your `.env.local` within the alfred-app directory. Feel free to user the provider of your choice, from azure to ollama (openai compatible).
+
+A second .env file may be necessary for the creation of the neo4j graph from databricks. When the alfred-app is running, those credentials can be added in the settings page. Currently the .env is limited to Azure but feel free to adapt it similar to the logic in the alfred application.
 
 ```env
 # Azure
@@ -163,14 +148,14 @@ Afterwards, there are a couple of helper notebooks in the `scripts/` folder to i
   - Use this to **build the semantic knowledge graph** from the data stored in Databricks and push it into Neo4j.
   - This is designed to be **run on your local machine** where it can access your Databricks tables and talk to Neo4j.
 
-Finally, go again into the [Alfred App](http://localhost:8081) and add the credentials of your ai model, your embedding model, your neo4j credentials and your databricks workspace. All should be set up now.
+Finally, update your `.env.local` for the `alfred-app`and start chatting.
 
 In a typical flow you would:
 1. Get to know the basics of using Neo4j and Databricks.
 2. If you not have any data in databricks, you open `create_databricks_schema.ipynb` in Databricks and run it to set up the sample schema and data.
 3. Configure your Databricks and Neo4j credentials via environment variables as described above.
 3. Open `create_graph_from_databricks.ipynb` on your local machine and run it to materialize the knowledge graph in Neo4j.
-4. Run Alfred, add credentials in the settings section and start asking questions.
+4. Add the `.env.local` in the alfred-app, run the application and start asking questions.
 
 Please note: These notebooks are intentionally simple and are meant as a starting point you can fork and adapt to your own schemas, business concepts, and graph modeling conventions.
 
@@ -183,7 +168,7 @@ The core domain **concepts** used in the example knowledge graph live in `script
 - `mnt/skill` - Agent Skills for Alfred
 - `lib/tools/` - Alfred's tools: View files, Data query tools and utilities for Databricks, SQL, and Neo4j
 - `lib/prompts/` - System prompt(s) for the application
-
+s
 ## Configuring Databricks and Neo4j Tools
 
 Alfred exposes its main data access paths as **tools** under `lib/tools/`. These tools are wired into the assistant runtime via the Vercel AI SDK and Assistant UI so the model can call them directly.

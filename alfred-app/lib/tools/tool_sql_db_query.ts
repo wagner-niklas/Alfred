@@ -1,7 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { executeDatabricksSQL } from "@/lib/tools/utils_tools";
-import type { DatabricksSettings } from "@/lib/db";
+
+const DATABRICKS_CATALOG = process.env.DATABRICKS_CATALOG;
+const DATABRICKS_SCHEMA = process.env.DATABRICKS_SCHEMA;
 
 const ensureSelectQuery = (sql: string) => {
   const trimmed = sql.trim();
@@ -46,11 +48,7 @@ const ensureSelectQuery = (sql: string) => {
   return statement;
 };
 
-const qualifyTables = (
-  sql: string,
-  catalog?: string | null,
-  schema?: string | null,
-) => {
+const qualifyTables = (sql: string) => {
   const cteMatch = sql.match(/^\s*with\s+([\s\S]+?)\)\s*select\b/i);
   let ctes: string[] = [];
   if (cteMatch) {
@@ -62,23 +60,12 @@ const qualifyTables = (
     /\b(from|join)\s+([`"]?)([a-z0-9_]+)\2\b/gi,
     (match, keyword, quote, table) => {
       if (table.includes(".") || ctes.includes(table.toLowerCase())) return match;
-
-      // Only qualify tables if both catalog and schema are provided in the
-      // user's Databricks settings. Otherwise, keep the original table name
-      // and assume the query is fully qualified by the caller.
-      if (!catalog || !schema) return match;
-
-      return `${keyword} \`${catalog}\`.\`${schema}\`.${table}`;
+      return `${keyword} \`${DATABRICKS_CATALOG}\`.\`${DATABRICKS_SCHEMA}\`.${table}`;
     }
   );
 };
 
-// Factory that binds a specific Databricks configuration (typically loaded
-// from the SQLite user_settings table) into the tool. This avoids relying on
-// a Request object inside the tool execution context.
-export const tool_sql_db_query = (
-  databricksSettingsFromConfig?: DatabricksSettings | null,
-) =>
+export const tool_sql_db_query = () =>
   tool({
     name: "tool_sql_db_query",
     description: "Executes a read-only SQL query on the database and returns the results.",
@@ -96,21 +83,8 @@ export const tool_sql_db_query = (
       sql_query: z.string().describe("The SQL query to execute."),
     }),
     execute: async ({ sql_query }) => {
-      const databricksSettings = databricksSettingsFromConfig ?? null;
-
-      if (!databricksSettings) {
-        throw new Error(
-          "Databricks settings are missing. Configure them in /settings before using the SQL tool.",
-        );
-      }
-
-      const sql = qualifyTables(
-        ensureSelectQuery(sql_query),
-        databricksSettings.catalog ?? undefined,
-        databricksSettings.schema ?? undefined,
-      );
-
-      const result = await executeDatabricksSQL(sql, databricksSettings);
+      const sql = qualifyTables(ensureSelectQuery(sql_query));
+      const result = await executeDatabricksSQL(sql);
       return { result };
     },
   });

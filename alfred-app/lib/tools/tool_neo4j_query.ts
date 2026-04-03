@@ -1,20 +1,115 @@
 import { tool, embed } from "ai";
 import { z } from "zod";
 import neo4j from "neo4j-driver";
-import { createAzureClient, getDefaultEmbeddingModel } from "@/lib/ai/azure";
-import { createOpenAIClient } from "@/lib/ai/openai";
-import type { EmbeddingSettings, GraphSettings } from "@/lib/db";
+import { createAzure } from "@ai-sdk/azure";
+import { createOpenAI } from "@ai-sdk/openai";
 
+// --- Neo4j setup ---
+const NEO4J_BOLT_URL = process.env.NEO4J_BOLT_URL!;
+const NEO4J_USERNAME = process.env.NEO4J_USERNAME!;
+const NEO4J_PASSWORD = process.env.NEO4J_PASSWORD!;
 const TOP_K = 3;
+
+export const driver = neo4j.driver(
+  NEO4J_BOLT_URL,
+  neo4j.auth.basic(NEO4J_USERNAME, NEO4J_PASSWORD)
+);
+
+export const getSession = (database = "neo4j") =>
+  driver.session({ database });
+
+// --- Embedding model setup (fully independent) ---
+function getEmbeddingModel() {
+  const provider = process.env.EMBEDDING_PROVIDER || "azure";
+
+  if (provider === "azure") {
+    const azure = createAzure({
+      apiKey: process.env.AZURE_OPENAI_EMBEDDING_API_KEY!,
+      apiVersion: process.env.AZURE_OPENAI_EMBEDDING_API_VERSION!,
+      baseURL: process.env.AZURE_OPENAI_EMBEDDING_BASE_URL!,
+      useDeploymentBasedUrls: true,
+    });
+
+    return azure.embedding(
+      process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT!
+    );
+  }
+
+  // fallback to OpenAI-compatible embeddings
+  const openai = createOpenAI({
+    apiKey:
+      process.env.OPENAI_EMBEDDING_API_KEY ||
+      process.env.OPENAI_API_KEY!,
+    baseURL:
+      process.env.OPENAI_EMBEDDING_BASE_URL ||
+      process.env.OPENAI_BASE_URL,
+  });
+
+  return openai.embedding(
+    process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-large"
+  );
+}
+
+const embeddingModel = getEmbeddingModel();
 
 // Cypher retrieval query body (without the initial MATCH/WHERE) mirroring
 // the notebook's retrieval_query for Table context. The main query will
 // prepend an appropriate MATCH/WHERE clause.
-const TABLE_RETRIEVAL_CYPHER = `
+
+export const tool_neo4j_query = () =>
+  tool({
+    name: "tool_neo4j_query",
+    description:
+      "Queries a knowledge graph containing structured metadata about the database (tables, columns, relationships).",
+    inputSchema: z.object({
+      query: z
+        .string()
+        .describe(
+          "Natural language question to retrieve relevant metadata or relationships from the knowledge graph."
+        ),
+    }),
+    execute: async ({ query }) => {
+      const session = getSession();
+
+      try {
+        // --- 1) Create embedding for the natural language query ---
+        const { embedding } = await embed({
+          model: embeddingModel,
+          value: query,
+        });
+
+        // --- 2) Vector search over Table nodes ---
+        const vectorSearchCypher = `
+CALL db.index.vector.queryNodes("table_vector_index", $topK, $embedding) YIELD node, score
+RETURN elementId(node) AS node_id, node.name AS table_name, score
+ORDER BY score DESC
+`;
+
+        const vectorResult = await session.run(vectorSearchCypher, {
+          topK: TOP_K,
+          embedding,
+        });
+
+        const tableNames = vectorResult.records.map((r) => ({
+          table_name: r.get("table_name"),
+          score: r.get("score"),
+        }));
+
+        if (tableNames.length === 0) {
+          return {
+            query,
+            vector_matches: [],
+            retrieval: [],
+            warning:
+              "No tables found from vector index for the provided query. Ensure embeddings and vector index are created.",
+          };
+        }
+
+        // --- 3) Run retrieval query restricted to matched tables ---
+        const TABLE_RETRIEVAL_CYPHER = `
 OPTIONAL MATCH (node)-[:HAS_COLUMN]->(col:Column)
 OPTIONAL MATCH (col)-[:MAPS_TO_CONCEPT]->(concept:Concept)
 OPTIONAL MATCH (concept)<-[:MAPS_TO_CONCEPT]-(relatedCol:Column)
-
 RETURN 
   node.name AS table_name,
   node.description AS table_description,
@@ -37,185 +132,6 @@ RETURN
   END) AS related_columns
 `;
 
-type ResolvedNeo4jConfig = {
-  boltUrl: string;
-  username: string;
-  password: string;
-  database: string;
-};
-
-// Resolve the embedding model to use for graph queries. Prefer a per-user
-// embedding configuration (stored in SQLite via the /settings page). If that
-// configuration is missing or incomplete, fall back to the environment-based
-// default so the tool continues to work out of the box.
-function resolveEmbeddingModel(
-  embeddingSettingsFromConfig?: EmbeddingSettings | null,
-) {
-  if (
-    embeddingSettingsFromConfig &&
-    embeddingSettingsFromConfig.apiKey &&
-    embeddingSettingsFromConfig.baseURL &&
-    embeddingSettingsFromConfig.deployment
-  ) {
-    // Switch based on the configured embedding provider. This mirrors the
-    // chat model configuration where we support both Azure OpenAI and
-    // OpenAI-compatible HTTP endpoints.
-    if (embeddingSettingsFromConfig.provider === "openai-compatible") {
-      const client = createOpenAIClient({
-        apiKey: embeddingSettingsFromConfig.apiKey,
-        baseURL: embeddingSettingsFromConfig.baseURL,
-        deployment: embeddingSettingsFromConfig.deployment,
-      });
-
-      return client.embedding();
-    }
-
-    const client = createAzureClient({
-      apiKey: embeddingSettingsFromConfig.apiKey,
-      apiVersion: embeddingSettingsFromConfig.apiVersion,
-      baseURL: embeddingSettingsFromConfig.baseURL,
-      deployment: embeddingSettingsFromConfig.deployment,
-    });
-
-    // Use the explicitly configured deployment name. This keeps the
-    // embedding model fully independent from the chat model config.
-    return client.embedding(embeddingSettingsFromConfig.deployment);
-  }
-
-  // Backwards-compatible fallback; uses AZURE_OPENAI_* env variables.
-  return getDefaultEmbeddingModel();
-}
-
-// Resolve Neo4j connection settings from an optional per-user graph config,
-// falling back to environment variables for backwards compatibility.
-function resolveNeo4jConfig(
-  graphSettingsFromConfig?: GraphSettings | null,
-): ResolvedNeo4jConfig {
-  let boltUrl: string | undefined;
-  let username: string | undefined;
-  let password: string | undefined;
-  let database: string | undefined;
-
-  if (graphSettingsFromConfig) {
-    boltUrl = graphSettingsFromConfig.boltUrl;
-    username = graphSettingsFromConfig.username;
-    password = graphSettingsFromConfig.password;
-    database = graphSettingsFromConfig.database ?? undefined;
-  }
-
-  boltUrl ??= process.env.NEO4J_BOLT_URL;
-  username ??= process.env.NEO4J_USERNAME;
-  password ??= process.env.NEO4J_PASSWORD;
-  database ??= "neo4j";
-
-  if (!boltUrl || !username || !password) {
-    throw new Error(
-      "Neo4j settings are missing. Configure them either in /settings or via environment variables.",
-    );
-  }
-
-  return {
-    boltUrl,
-    username,
-    password,
-    database,
-  };
-}
-
-// Resolve the Neo4j vector index used for table embeddings. This prefers the
-// per-user setting from SQLite but falls back to an environment variable and
-// finally a hard-coded default so that the system works out of the box.
-function resolveTableVectorIndex(
-  graphSettingsFromConfig?: GraphSettings | null,
-): string {
-  return (
-    graphSettingsFromConfig?.tableVectorIndex ??
-    process.env.NEO4J_TABLE_VECTOR_INDEX ??
-    "table_vector_index"
-  );
-}
-
-// Helper used by the graph API route to obtain a driver + session pair based
-// on either per-user settings or environment variables.
-export function createNeo4jSession(
-  graphSettingsFromConfig?: GraphSettings | null,
-) {
-  const { boltUrl, username, password, database } = resolveNeo4jConfig(
-    graphSettingsFromConfig,
-  );
-
-  const driver = neo4j.driver(boltUrl, neo4j.auth.basic(username, password));
-  const session = driver.session({ database });
-
-  return { driver, session };
-}
-
-// Factory that binds a specific Neo4j configuration (typically loaded
-// from the SQLite user_settings table) into the tool. This avoids relying on
-// a Request object inside the tool execution context.
-export const tool_neo4j_query = (
-  graphSettingsFromConfig?: GraphSettings | null,
-  embeddingSettingsFromConfig?: EmbeddingSettings | null,
-) =>
-  tool({
-    name: "tool_neo4j_query",
-    description:
-      "Queries a knowledge graph that contains structured metadata and relationships about the database, such as tables, columns, and their connections.",
-    inputSchema: z.object({
-      query: z
-        .string()
-        .describe(
-          "Natural language question used to retrieve relevant subinformation about database structures, entities, or relationships from the knowledge graph."
-        ),
-    }),
-    execute: async ({ query }) => {
-      const { driver, session } = createNeo4jSession(graphSettingsFromConfig);
-      const tableVectorIndex = resolveTableVectorIndex(graphSettingsFromConfig);
-
-      try {
-        // --- Table-centric retrieval using embedding + Cypher ---
-
-        // 1) Create embedding for the natural language table query.
-        //    We prefer the per-user embedding model from the database, but
-        //    fall back to the environment-based default when needed.
-        const embeddingModel = resolveEmbeddingModel(
-          embeddingSettingsFromConfig,
-        );
-
-        const { embedding } = await embed({
-          model: embeddingModel,
-          value: query,
-        });
-
-        // 2) Vector search over Table nodes.
-        //    This uses a configurable vector index on (t.table_embedding).
-        const vectorSearchCypher = `
-CALL db.index.vector.queryNodes("${tableVectorIndex}", $topK, $embedding) YIELD node, score
-RETURN elementId(node) AS node_id, node.name AS table_name, score
-ORDER BY score DESC
-`;
-
-        const vectorResult = await session.run(vectorSearchCypher, {
-          topK: TOP_K,
-          embedding,
-        });
-
-        const tableNames = vectorResult.records.map((r) => ({
-          table_name: r.get("table_name"),
-          score: r.get("score"),
-        }));
-
-        if (tableNames.length === 0) {
-          return {
-            query,
-            vector_matches: [],
-            retrieval: [],
-            warning:
-              "No tables found from vector index for the provided natural language query. Ensure embeddings and vector index are created.",
-          };
-        }
-
-        // 3) Run the standardized retrieval query, restricted to the matched tables.
         const retrievalCypher = `
 MATCH (node:Table)
 WHERE node.name IN $tableNames
@@ -226,7 +142,9 @@ ${TABLE_RETRIEVAL_CYPHER}
           tableNames: tableNames.map((t) => t.table_name),
         });
 
-        const retrievalData = retrievalResult.records.map((r) => r.toObject());
+        const retrievalData = retrievalResult.records.map((r) =>
+          r.toObject()
+        );
 
         return {
           query,
@@ -235,13 +153,11 @@ ${TABLE_RETRIEVAL_CYPHER}
         };
       } catch (err: unknown) {
         console.error("Neo4j query error:", err);
-
         return {
           error: err instanceof Error ? err.message : "Unknown Neo4j error",
         };
       } finally {
         await session.close();
-        await driver.close();
       }
     },
   });

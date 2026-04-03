@@ -29,24 +29,22 @@ function getChatModel() {
   });
 
   return {
-    model: openai.chat(
-      process.env.OPENAI_CHAT_MODEL || "gpt-4.1-mini"
-    ),
+    model: openai.chat(process.env.OPENAI_CHAT_MODEL || "gpt-4.1-mini"),
     provider: "openai" as const,
   };
 }
+
 const { model, provider } = getChatModel();
 
-
-type EnhancePromptRequestBody = {
+type MediatePromptRequestBody = {
   prompt?: string;
 };
 
 export async function POST(req: Request) {
-  let body: EnhancePromptRequestBody | null = null;
+  let body: MediatePromptRequestBody | null = null;
 
   try {
-    body = (await req.json()) as EnhancePromptRequestBody;
+    body = (await req.json()) as MediatePromptRequestBody;
   } catch {
     return NextResponse.json(
       { error: "Invalid JSON body" },
@@ -69,8 +67,7 @@ export async function POST(req: Request) {
     if (!neo4jTool || !neo4jTool.execute) {
       throw new Error("Failed to initialize Neo4j tool");
     }
-    // We call the tool directly with its input payload; ToolCallOptions are
-    // only needed when the SDK invokes tools on behalf of a model.
+
     const neo4jResult = await neo4jTool.execute(
       {
         query: prompt,
@@ -83,7 +80,7 @@ export async function POST(req: Request) {
     const system = ENHANCE_PROMPT_SYSTEM;
 
     const { text } = await generateText({
-      model: model,
+      model,
       system,
       prompt:
         `Original prompt (from the user):\n` +
@@ -91,28 +88,28 @@ export async function POST(req: Request) {
         `\n\nNeo4j context (JSON):\n` +
         JSON.stringify(neo4jResult, null, 2),
       providerOptions:
-      provider === "azure"
-        ? {
-            azure: {
-              reasoningEffort: "low",
-            },
-          }
-        : undefined,
+        provider === "azure"
+          ? {
+              azure: {
+                reasoningEffort: "low",
+              },
+            }
+          : undefined,
     });
 
-    const enhancedPrompt = text.trim();
+    const mediatedPrompt = text.trim();
 
-    // Fallback: if for some reason the model returned an empty string, keep the original.
     return NextResponse.json({
-      enhancedPrompt: enhancedPrompt || prompt,
+      // Keep response shape compatible with existing client code
+      enhancedPrompt: mediatedPrompt || prompt,
     });
   } catch (error) {
-    console.error("Error enhancing prompt:", error);
+    console.error("Error mediating prompt:", error);
 
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : "Unknown error enhancing prompt",
+          error instanceof Error ? error.message : "Unknown error mediating prompt",
       },
       { status: 500 },
     );

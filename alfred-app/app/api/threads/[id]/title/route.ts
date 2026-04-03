@@ -11,7 +11,7 @@
 //       in SQLite via lib/db, and returns `{ title }`.
 
 import { updateThread } from "@/lib/db";
-import { getOrCreateUserId } from "@/lib/user";
+import { attachSetCookieHeader, getOrCreateUserId } from "@/lib/user";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -31,7 +31,7 @@ type TitleSourceMessage = {
 };
 
 export async function POST(req: Request, context: RouteContext) {
-  const { userId } = getOrCreateUserId(req);
+  const { userId, setCookieHeader } = getOrCreateUserId(req);
   const { id } = await context.params;
   const body = await req.json().catch(() => ({}));
   const { messages } = body as { messages?: TitleSourceMessage[] };
@@ -56,5 +56,6 @@ export async function POST(req: Request, context: RouteContext) {
 
   updateThread(userId, id, { title });
 
-  return Response.json({ title });
+  const response = Response.json({ title });
+  return attachSetCookieHeader(response, setCookieHeader);
 }
