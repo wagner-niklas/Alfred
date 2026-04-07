@@ -1,6 +1,6 @@
 ---
-name: data-analysis
-description: Structured, tool-driven analysis for any data or database question. Always consult this skill before running queries.
+name: analyze-database
+description: Use this skill whenever question must be answered based on database information. Triggers include queries about simple database questions, specific metrics, trends, comparisons, or insights from data, asking for insights, pattern, trends, outliers, optimizing sql queries, or requesting specific information. Also trigger when the user says things like "how many", "analyze this data", "query the database", or "find trends in..."
 license: ...
 ---
 

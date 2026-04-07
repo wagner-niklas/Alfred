@@ -189,20 +189,20 @@ async function readFileWithNumberedLines(
   };
 }
 
-export const tool_fs_view = () =>
+export const view = () =>
   tool({
     description:
-      "Inspect the filesystem for the assistant. If the input path is a directory, list its contents up to 2 levels deep with file sizes (excluding hidden entries). If the input is a file path, return the file contents with numbered lines. Optionally, provide a [start_line, end_line] view_range (1-based, end=-1 for end of file) to return only a specific slice. When no view_range is given for a large file, the response is truncated from the middle, showing the beginning and end (~16,000 characters total).",
+      "View text files, or directory listings",
     inputSchema: z.object({
       path: z
         .string()
         .describe(
-          "Path to a file or directory. Prefer an absolute path (e.g. '/mnt/skills' or '/mnt/skills/public/docx/SKILL.md'), but '.' and other relative paths are also allowed and will be resolved against the current working directory."
+          "File or directory path. Must be an absolute path starting with 'mnt/'",
         ),
       description: z
         .string()
         .describe(
-          "Brief explanation of why you are viewing this path, e.g. 'Inspecting a skill definition' or 'Debugging configuration'."
+          "Brief explanation of why you're viewing it."
         ),
       view_range: z
         .object({
@@ -228,7 +228,7 @@ export const tool_fs_view = () =>
         )
         .optional()
         .describe(
-          "Optional range object { start_line, end_line } to view only a specific range of lines in a text file. Lines are 1-based; use -1 as end_line to read to the end. Ignored for directories."
+          "Optional [start_line, end_line] for partial viewing"
         ),
     }),
     execute: async ({ path: targetPath, description, view_range }) => {

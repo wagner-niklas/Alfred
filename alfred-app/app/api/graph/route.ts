@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { Node, Relationship } from "neo4j-driver";
-import { getSession } from "@/lib/tools/tool_neo4j_query";
+import { getSession } from "@/lib/tools/tool_fetch_knowledge_store";
 
 /**
  * API surface for the `/api/graph` endpoint that backs the graph view.

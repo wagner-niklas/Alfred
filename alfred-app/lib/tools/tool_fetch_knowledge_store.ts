@@ -1,8 +1,6 @@
-import { tool, embed } from "ai";
+import { tool } from "ai";
 import { z } from "zod";
 import neo4j from "neo4j-driver";
-import { createAzure } from "@ai-sdk/azure";
-import { createOpenAI } from "@ai-sdk/openai";
 
 // --- Neo4j setup ---
 const NEO4J_BOLT_URL = process.env.NEO4J_BOLT_URL!;
@@ -18,53 +16,121 @@ export const driver = neo4j.driver(
 export const getSession = (database = "neo4j") =>
   driver.session({ database });
 
-// --- Embedding model setup (fully independent) ---
-function getEmbeddingModel() {
+// --- Embedding helper (direct HTTP calls, no ai.embed indirection) ---
+async function getEmbeddingVector(query: string): Promise<number[]> {
   const provider = process.env.EMBEDDING_PROVIDER || "azure";
 
   if (provider === "azure") {
-    const azure = createAzure({
-      apiKey: process.env.AZURE_OPENAI_EMBEDDING_API_KEY!,
-      apiVersion: process.env.AZURE_OPENAI_EMBEDDING_API_VERSION!,
-      baseURL: process.env.AZURE_OPENAI_EMBEDDING_BASE_URL!,
-      useDeploymentBasedUrls: true,
+    const apiKey = process.env.AZURE_OPENAI_EMBEDDING_API_KEY;
+    const apiVersion = process.env.AZURE_OPENAI_EMBEDDING_API_VERSION;
+    const baseURL = process.env.AZURE_OPENAI_EMBEDDING_BASE_URL;
+    const deployment = process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT;
+
+    if (!apiKey || !apiVersion || !baseURL || !deployment) {
+      throw new Error(
+        "Missing Azure embedding configuration. Please set AZURE_OPENAI_EMBEDDING_API_KEY, AZURE_OPENAI_EMBEDDING_API_VERSION, AZURE_OPENAI_EMBEDDING_BASE_URL, and AZURE_OPENAI_EMBEDDING_DEPLOYMENT.",
+      );
+    }
+
+    // Normalise base URL to avoid duplicated `/openai` segments. Users may
+    // set either:
+    //   - https://<resource>.openai.azure.com
+    //   - https://<resource>.openai.azure.com/openai/
+    // We always want `https://<resource>.openai.azure.com/openai/deployments/...`.
+    const trimmedBase = baseURL.replace(/\/+$/, "");
+    const baseWithoutOpenAi = trimmedBase.toLowerCase().endsWith("/openai")
+      ? trimmedBase.slice(0, -"/openai".length)
+      : trimmedBase;
+
+    const url = `${baseWithoutOpenAi}/openai/deployments/${deployment}/embeddings?api-version=${encodeURIComponent(apiVersion)}`;
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": apiKey,
+      },
+      body: JSON.stringify({ input: query }),
     });
 
-    return azure.embedding(
-      process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT!
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(
+        `Azure embedding request failed with status ${res.status}: ${text}`,
+      );
+    }
+
+    const json: any = await res.json();
+    const embedding = json?.data?.[0]?.embedding;
+
+    if (!Array.isArray(embedding)) {
+      throw new Error(
+        "Azure embedding API returned an unexpected response shape.",
+      );
+    }
+
+    return embedding as number[];
+  }
+
+  // Fallback: OpenAI-compatible embeddings via HTTP
+  const apiKey =
+    process.env.OPENAI_EMBEDDING_API_KEY || process.env.OPENAI_API_KEY;
+  const baseURL =
+    process.env.OPENAI_EMBEDDING_BASE_URL ||
+    process.env.OPENAI_BASE_URL ||
+    "https://api.openai.com/v1";
+  const model =
+    process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-large";
+
+  if (!apiKey) {
+    throw new Error(
+      "Missing OpenAI embedding configuration. Please set OPENAI_EMBEDDING_API_KEY or OPENAI_API_KEY.",
     );
   }
 
-  // fallback to OpenAI-compatible embeddings
-  const openai = createOpenAI({
-    apiKey:
-      process.env.OPENAI_EMBEDDING_API_KEY ||
-      process.env.OPENAI_API_KEY!,
-    baseURL:
-      process.env.OPENAI_EMBEDDING_BASE_URL ||
-      process.env.OPENAI_BASE_URL,
+  const url = `${baseURL.replace(/\/+$/, "")}/embeddings`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ input: query, model }),
   });
 
-  return openai.embedding(
-    process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-large"
-  );
-}
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `OpenAI embedding request failed with status ${res.status}: ${text}`,
+    );
+  }
 
-const embeddingModel = getEmbeddingModel();
+  const json: any = await res.json();
+  const embedding = json?.data?.[0]?.embedding;
+
+  if (!Array.isArray(embedding)) {
+    throw new Error(
+      "OpenAI embedding API returned an unexpected response shape.",
+    );
+  }
+
+  return embedding as number[];
+}
 
 // Cypher retrieval query body (without the initial MATCH/WHERE) mirroring
 // the notebook's retrieval_query for Table context. The main query will
 // prepend an appropriate MATCH/WHERE clause.
 
-export const tool_neo4j_query = () =>
+export const fetch_knowledge_store = () =>
   tool({
     description:
-      "Queries a knowledge graph containing structured metadata about the database (tables, columns, relationships).",
+      "Fetch tables, columns, and their relationships from the Knowledge Store based on a subset of the information schema.",
     inputSchema: z.object({
       query: z
         .string()
         .describe(
-          "Natural language question to retrieve relevant metadata or relationships from the knowledge graph."
+          "The search string."
         ),
     }),
     execute: async ({ query }) => {
@@ -72,10 +138,7 @@ export const tool_neo4j_query = () =>
 
       try {
         // --- 1) Create embedding for the natural language query ---
-        const { embedding } = await embed({
-          model: embeddingModel,
-          value: query,
-        });
+        const embedding = await getEmbeddingVector(query);
 
         // --- 2) Vector search over Table nodes ---
         const vectorSearchCypher = `
@@ -86,6 +149,7 @@ ORDER BY score DESC
 
         const vectorResult = await session.run(vectorSearchCypher, {
           topK: TOP_K,
+          // Ensure we always pass a plain array to Neo4j.
           embedding,
         });
 
