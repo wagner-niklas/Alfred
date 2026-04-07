@@ -65,21 +65,14 @@ const qualifyTables = (sql: string) => {
   );
 };
 
-export const tool_sql_db_query = () =>
+export const run_sql_query = () =>
   tool({
-    description: "Executes a read-only SQL query on the database and returns the results.",
+    description: "Run a read-only SQL query on the database and returns the results.",
     inputSchema: z.object({
-      ent_instructions: z
-        .string()
-        .describe(
-          "Very short instructions or hints on how certain keywords or phrases from the user question should be handled when creating the SQL query."
+      sql_query: z.string().describe("The SQL query statement."),
+      description: z.string().describe(
+          "Very short description steps used to construct the SQL query (e.g., filters, grouping, sorting)."
         ),
-      sql_reasoning_steps: z
-        .string()
-        .describe(
-          "Very short description of the reasoning and logical steps used to construct the SQL query (e.g., filters, grouping, sorting)."
-        ),
-      sql_query: z.string().describe("The SQL query to execute."),
     }),
     execute: async ({ sql_query }) => {
       const sql = qualifyTables(ensureSelectQuery(sql_query));

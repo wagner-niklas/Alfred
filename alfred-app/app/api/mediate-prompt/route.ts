@@ -3,8 +3,8 @@ import { createAzure } from "@ai-sdk/azure";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
 
-import { tool_neo4j_query } from "@/lib/tools/tool_neo4j_query";
-import { ENHANCE_PROMPT_SYSTEM } from "@/lib/prompts/enhance-prompt";
+import { fetch_knowledge_store } from "@/lib/tools/tool_fetch_knowledge_store";
+import { MEDIATE_PROMPT_SYSTEM } from "@/lib/prompts/mediate-prompt";
 
 const chatProvider = process.env.CHAT_PROVIDER || "azure";
 
@@ -63,7 +63,7 @@ export async function POST(req: Request) {
 
   try {
     // 1) Use the Neo4j tool to fetch relevant schema / knowledge-store context
-    const neo4jTool = tool_neo4j_query();
+    const neo4jTool = fetch_knowledge_store();
     if (!neo4jTool || !neo4jTool.execute) {
       throw new Error("Failed to initialize Neo4j tool");
     }
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
 
     // 2) Ask the LLM to rewrite the user's prompt using the retrieved context.
     //    The model should respond with a single improved prompt string.
-    const system = ENHANCE_PROMPT_SYSTEM;
+    const system = MEDIATE_PROMPT_SYSTEM;
 
     const { text } = await generateText({
       model,

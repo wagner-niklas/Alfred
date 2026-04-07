@@ -2,15 +2,15 @@ import { tool } from "ai";
 import { z } from "zod";
 import { Ollama } from "ollama";
 
-export const tool_ollama_web_fetch = () =>
+export const web_fetch = () =>
   tool({
     description:
-      "Fetches the content of a web page using Ollama's webFetch capability.",
+      "Fetch the contents of a web page at a given URL.",
     inputSchema: z.object({
       url: z
         .string()
         .url()
-        .describe("The URL of the web page to fetch using Ollama webFetch."),
+        .describe("The URL to fetch."),
     }),
     execute: async ({ url }) => {
       const client = new Ollama({

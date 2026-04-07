@@ -2,14 +2,14 @@ import { tool } from "ai";
 import { z } from "zod";
 import { Ollama } from "ollama";
 
-export const tool_ollama_web_search = () =>
+export const web_search = () =>
   tool({
     description:
-      "Uses the local Ollama server's web search capability to look up fresh information on the internet.",
+      "Search the web",
     inputSchema: z.object({
       query: z
         .string()
-        .describe("The natural language query to search for on the web. The query should describe what information you want to retrieve from the internet."),
+        .describe("The search query."),
       max_results: z
         .number()
         .int()
