@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Starfield } from "@/components/ui/starfield";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AlfredRuntimeProvider } from "@/components/alfred/runtime-provider";
 import { AppSidebar } from "@/components/alfred/app-sidebar";
@@ -41,8 +42,9 @@ export default async function RootLayout({ children }: RootLayoutProps) {
           disableTransitionOnChange
         >
           <SidebarProvider>
+            <Starfield />
             <AlfredRuntimeProvider>
-              <div className="flex h-dvh w-full pr-0.5">
+              <div className="relative z-10 flex h-dvh w-full pr-0.5">
                 <AppSidebar />
                 <SidebarInset className="flex flex-1 flex-col overflow-hidden">
                   {children}

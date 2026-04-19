@@ -143,7 +143,7 @@ export async function POST(req: Request) {
 			provider === "azure"
 				? {
 						azure: {
-							reasoningEffort: "low",
+							reasoningEffort: "none",
 						},
 				  }
 				: undefined,

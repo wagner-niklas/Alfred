@@ -16,7 +16,7 @@ export default function Home() {
     <>
       <header className="flex h-16 shrink-0 items-center gap-2 px-4">
         <SidebarTrigger />
-        <Breadcrumb>
+        {/*<Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem className="hidden md:block">Home</BreadcrumbItem>
             <BreadcrumbSeparator className="hidden md:block" />
@@ -24,7 +24,7 @@ export default function Home() {
               <BreadcrumbPage>Alfred</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
-        </Breadcrumb>
+        </Breadcrumb>*/}
       </header>
       <main className="flex-1 overflow-hidden">
         <Thread />

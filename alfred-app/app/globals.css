@@ -142,6 +142,17 @@
   }
 }
 
+@keyframes star-twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+
 /* Subtle, slower pulse used for the "Enhance my prompt" button while enhancing */
 .aui-composer-enhance-pulse {
   animation: aui-enhance-pulse 1.1s ease-in-out infinite;

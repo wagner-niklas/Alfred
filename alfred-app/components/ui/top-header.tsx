@@ -12,7 +12,7 @@ type TopHeaderProps = {
 
 export function TopHeader({ children, includeTrigger = true }: TopHeaderProps) {
   return (
-    <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+    <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
       {includeTrigger ? <SidebarTrigger /> : null}
       <Breadcrumb>
         <BreadcrumbList>{children}</BreadcrumbList>

@@ -74,7 +74,7 @@ function SettingsPageInner() {
     <>
       <header className="flex h-16 shrink-0 items-center gap-2 px-4">
         <SidebarTrigger />
-        <Breadcrumb>
+        {/*<Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem className="hidden md:block">
               <BreadcrumbLink asChild>
@@ -90,7 +90,7 @@ function SettingsPageInner() {
               <BreadcrumbPage>Settings</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
-        </Breadcrumb>
+        </Breadcrumb>*/}  
       </header>
 
       <main className="flex-1 overflow-auto">
