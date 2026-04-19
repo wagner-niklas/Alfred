@@ -7,7 +7,8 @@ import {
   CopyIcon,
   PencilIcon,
   RefreshCwIcon,
-  Square
+  Square,
+  Search as SearchIcon,
 } from "lucide-react";
 
 import {
@@ -53,23 +54,18 @@ export const Thread: FC = () => {
             autoScroll
             className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
           >     
-            {/* EMPTY STATE: centered welcome + smaller input */}
+            {/* EMPTY STATE: welcome + smaller input, slightly higher on the page */}
             <ThreadPrimitive.If empty>
-              <div className="flex flex-1 items-center justify-center">
+              <div className="flex flex-1 items-start justify-center pt-14 md:pt-20">
                 <div className="flex w-full max-w-[var(--thread-max-width)] flex-col items-center">
                   <ThreadWelcome />
 
-                  {/* Composer (empty thread): generic prompt */}
-                  <div className="mt-14 w-full flex justify-center">
+                  {/* Composer (empty thread): generic prompt + inline examples */}
+                  <div className="mt-10 w-full flex justify-center">
                     <Composer
                       variant="compact"
                       placeholder="Ask me anything..."
                     />
-                  </div>
-
-                  {/* Examples under the chat input */}
-                  <div className="mt-2 w-full flex justify-center">
-                    <ThreadSuggestions />
                   </div>
                 </div>
               </div>
@@ -188,42 +184,196 @@ const ThreadWelcome: FC = () => {
   );
 };
 
-const ThreadSuggestions: FC = () => {
+type ThreadSuggestionsProps = {
+  isVisible?: boolean;
+  query?: string;
+};
+
+const ThreadSuggestions: FC<ThreadSuggestionsProps> = ({ isVisible, query }) => {
+  const [recentPrompts, setRecentPrompts] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const extractText = (content: unknown): string => {
+      // Helper to deal with cases where the text itself is a serialized
+      // ai-sdk message (like the example you showed). We try to parse it
+      // and, if it looks like a message object, recurse into its content.
+      const fromMaybeSerialized = (text: string): string => {
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed && typeof parsed === "object") {
+            if ("content" in parsed) {
+              return extractText((parsed as any).content);
+            }
+            if ("parts" in parsed) {
+              return extractText((parsed as any).parts);
+            }
+          }
+        } catch {
+          // Not JSON – treat as plain text.
+        }
+        return text;
+      };
+
+      if (typeof content === "string") {
+        return fromMaybeSerialized(content);
+      }
+
+      if (Array.isArray(content)) {
+        return content
+          .map((part) => {
+            if (typeof part === "string") return fromMaybeSerialized(part);
+
+            if (part && typeof part === "object") {
+              if ("text" in part && typeof (part as any).text === "string") {
+                return fromMaybeSerialized((part as any).text);
+              }
+              if ("content" in part) {
+                return extractText((part as any).content);
+              }
+            }
+            return "";
+          })
+          .join(" ");
+      }
+
+      if (content && typeof content === "object") {
+        // Full ai-sdk message object (id, format, content, ...)
+        if ("content" in content) {
+          return extractText((content as any).content);
+        }
+
+        if ("parts" in content && Array.isArray((content as any).parts)) {
+          return extractText((content as any).parts);
+        }
+
+        if ("text" in content && typeof (content as any).text === "string") {
+          return fromMaybeSerialized((content as any).text);
+        }
+      }
+
+      try {
+        return JSON.stringify(content);
+      } catch {
+        return "";
+      }
+    };
+
+    const loadRecentFirstQuestions = async () => {
+      try {
+        const threadsRes = await fetch("/api/threads", { cache: "no-store" });
+        if (!threadsRes.ok) return;
+
+        const threads = (await threadsRes.json()) as Array<{
+          id: string;
+        }>;
+
+        const recent: string[] = [];
+
+        for (const t of threads) {
+          if (recent.length >= 2) break;
+
+          try {
+            const messagesRes = await fetch(`/api/threads/${t.id}/messages`, {
+              cache: "no-store",
+            });
+            if (!messagesRes.ok) continue;
+
+            const messages = (await messagesRes.json()) as Array<{
+              role: "user" | "assistant" | "system";
+              content: unknown;
+            }>;
+
+            const firstUserMessage = messages.find(
+              (m) => m.role === "user",
+            );
+            if (!firstUserMessage) continue;
+
+            const text = extractText(firstUserMessage.content).trim();
+            if (text) {
+              recent.push(text);
+            }
+          } catch {
+            // Best-effort only – failure to load one thread should not block others.
+          }
+
+          if (cancelled) return;
+        }
+
+        if (!cancelled) {
+          setRecentPrompts(recent);
+        }
+      } catch {
+        // Swallow errors – suggestions are a progressive enhancement.
+      }
+    };
+
+    void loadRecentFirstQuestions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const staticSuggestions = [
+    {
+      action:
+        "How many clients are in each district? Which has the most?",
+    },
+    {
+      action:
+        "What's the count of issued card types (credit, debit, prepaid)?",
+    },
+    {
+      action:
+        "How many accounts does each client have? Who has the most?",
+    },
+
+  ];
+
+  const recentSuggestions = recentPrompts.map((prompt) => ({ action: prompt }));
+
+  const normalizedQuery = (query ?? "").trim().toLowerCase();
+  const matchesQuery = (text: string) =>
+    !normalizedQuery || text.toLowerCase().includes(normalizedQuery);
+
+  const filteredStaticSuggestions = staticSuggestions.filter((s) =>
+    matchesQuery(s.action),
+  );
+  const filteredRecentSuggestions = recentSuggestions.filter((s) =>
+    matchesQuery(s.action),
+  );
+
+  const hasSuggestions =
+    filteredStaticSuggestions.length > 0 ||
+    filteredRecentSuggestions.length > 0;
+
+  if (!hasSuggestions) {
+    return null;
+  }
+
   return (
-    <div className="aui-thread-welcome-suggestions grid w-full gap-2 pb-4 @md:grid-cols-2">
-      {[
-        {
-          title: "How many clients are in each",
-          label: "district? Which has the most?",
-          action:
-            "How many clients are in each district? Which has the most?",
-        },
-        {
-          title: "What's the count of issued card",
-          label: "types (credit, debit, prepaid)?",
-          action:
-            "What's the count of issued card types (credit, debit, prepaid)?",
-        },
-        {
-          title: "How many accounts does each",
-          label: "client have? Who has the most?",
-          action:
-            "How many accounts does each client have? Who has the most?",
-        },
-        {
-          title: "How have new card issuances",
-          label: "changed over time?",
-          action:
-            "How have new card issuances changed over time?",
-        },
-      ].map((suggestedAction, index) => (
+    <div
+      className={cn(
+        "aui-thread-welcome-suggestions mb-1 flex w-full flex-col gap-1 px-1.5 pb-1 transition-all duration-250 ease-out",
+        isVisible
+          ? "opacity-100 translate-y-0"
+          : "opacity-0 translate-y-1 pointer-events-none",
+      )}
+    >
+      {/* Fine grey line between composer and suggestions, slightly inset left/right */}
+      <div className="mt-1 pt-1">
+        <div className="pointer-events-none mx-2 border-t border-border/60" />
+      </div>
+      {filteredStaticSuggestions.map((suggestedAction, index) => (
         <m.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 20 }}
           transition={{ delay: 0.05 * index }}
-          key={`suggested-action-${suggestedAction.title}-${index}`}
-          className="aui-thread-welcome-suggestion-display [&:nth-child(n+3)]:hidden @md:[&:nth-child(n+3)]:block"
+          key={`suggested-action-${index}-${suggestedAction.action.slice(0, 32)}`}
+          className="aui-thread-welcome-suggestion-display"
         >
           <ThreadPrimitive.Suggestion
             prompt={suggestedAction.action}
@@ -232,14 +382,50 @@ const ThreadSuggestions: FC = () => {
           >
             <Button
               variant="ghost"
-              className="aui-thread-welcome-suggestion h-auto w-full flex-1 flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm @md:flex-col dark:hover:bg-accent/60"
+              className="aui-thread-welcome-suggestion h-auto w-full flex flex-nowrap items-center justify-start gap-2 rounded-3xl border-none px-4 py-2.5 text-left text-sm dark:hover:bg-accent/60"
+              // Prevent the textarea from blurring before the suggestion click
+              // is handled, so the suggestion can still trigger a send.
+              onMouseDown={(e) => e.preventDefault()}
               aria-label={suggestedAction.action}
             >
-              <span className="aui-thread-welcome-suggestion-text-1 font-medium">
-                {suggestedAction.title}
+              <SearchIcon className="aui-thread-welcome-suggestion-icon mr-1 h-4 w-4 flex-shrink-0 text-muted-foreground/80" />
+              <span className="aui-thread-welcome-suggestion-text-1 truncate text-muted-foreground">
+                {suggestedAction.action}
               </span>
-              <span className="aui-thread-welcome-suggestion-text-2 text-muted-foreground">
-                {suggestedAction.label}
+            </Button>
+          </ThreadPrimitive.Suggestion>
+        </m.div>
+      ))}
+
+      {filteredRecentSuggestions.length > 0 && (
+        <div className="aui-thread-welcome-suggestions-recent-label px-3 pt-2 text-xs font-medium text-muted-foreground/70">
+          Recent
+        </div>
+      )}
+
+      {filteredRecentSuggestions.map((suggestedAction, index) => (
+        <m.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
+          transition={{ delay: 0.05 * (staticSuggestions.length + index) }}
+          key={`suggested-recent-action-${index}-${suggestedAction.action.slice(0, 32)}`}
+          className="aui-thread-welcome-suggestion-display"
+        >
+          <ThreadPrimitive.Suggestion
+            prompt={suggestedAction.action}
+            send
+            asChild
+          >
+            <Button
+              variant="ghost"
+              className="aui-thread-welcome-suggestion h-auto w-full flex flex-nowrap items-center justify-start gap-2 rounded-3xl border-none px-4 py-2.5 text-left text-sm dark:hover:bg-accent/60"
+              onMouseDown={(e) => e.preventDefault()}
+              aria-label={suggestedAction.action}
+            >
+              <SearchIcon className="aui-thread-welcome-suggestion-icon mr-1 h-4 w-4 flex-shrink-0 text-muted-foreground/80" />
+              <span className="aui-thread-welcome-suggestion-text-1 truncate text-muted-foreground">
+                {suggestedAction.action}
               </span>
             </Button>
           </ThreadPrimitive.Suggestion>
@@ -262,7 +448,10 @@ const Composer: FC<ComposerProps> = ({
   variant = "default",
   placeholder = "Ask me anything ...",
 }) => {
-  const isDefault = variant === "default";
+  const isCompact = variant === "compact";
+  const [isFocused, setIsFocused] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [inputValue, setInputValue] = useState("");
   const router = useRouter();
   const pathname = usePathname();
   const aui = useAui() as any;
@@ -293,11 +482,31 @@ const Composer: FC<ComposerProps> = ({
     }
   };
 
+  // Control mounting/unmounting of suggestions so that:
+  // - When focused: suggestions fade in and take space.
+  // - Shortly after blur: suggestions fade out, then unmount so the composer
+  //   returns to its original height ("as before").
+  useEffect(() => {
+    if (!isCompact) return;
+
+    if (isFocused) {
+      setShowSuggestions(true);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setShowSuggestions(false);
+    }, 250); // match ThreadSuggestions transition duration
+
+    return () => clearTimeout(timeout);
+  }, [isCompact, isFocused]);
+
   return (
     <div
       className={cn(
         "aui-composer-wrapper sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col overflow-visible rounded-t-3xl bg-background",
-        isDefault ? "gap-2 pb-2 md:pb-3" : "gap-4 pb-4 md:pb-6",
+        // Use tighter spacing so the disclaimer sits closer to the composer
+        isCompact ? "gap-2 pb-2 md:pb-3" : "gap-2 pb-2 md:pb-3",
         wrapperClassName
       )}
     >
@@ -311,13 +520,22 @@ const Composer: FC<ComposerProps> = ({
           placeholder={placeholder}
           className={cn(
             "aui-composer-input mb-1 w-full resize-none bg-transparent px-3.5 pt-1.5 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-0",
-            variant === "default" ? "min-h-8" : "min-h-16 max-h-32"
+            variant === "default" ? "min-h-8" : "min-h-12 max-h-32"
           )}
           rows={1}
           autoFocus
           aria-label="Message input"
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          onChange={(event) => setInputValue(event.target.value)}
         />
         <ComposerAction />
+        {/* Inline example suggestions only for compact composer.
+            They fade in/out on focus change and unmount after blur
+            so the composer returns to its original height. */}
+        {isCompact && showSuggestions && (
+          <ThreadSuggestions isVisible={isFocused} query={inputValue} />
+        )}
       </ComposerPrimitive.Root>
     </div>
   );

@@ -32,7 +32,7 @@ export default function GraphPage() {
     <>
       <header className="flex h-16 shrink-0 items-center gap-2 px-4">
         <SidebarTrigger />
-        <Breadcrumb>
+        {/*<Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem className="hidden md:block">
               <BreadcrumbLink asChild>
@@ -44,7 +44,7 @@ export default function GraphPage() {
               <BreadcrumbPage>Knowledge Store</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
-        </Breadcrumb>
+        </Breadcrumb>*/}
       </header>
       <div className="flex-1 overflow-hidden">
         <GraphView />
