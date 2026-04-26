@@ -32,10 +32,6 @@ Alfred addresses these issues by providing an **open, inspectable reference impl
 
 It uses natural language understanding, multi source data querying, and reasoning tools to help users explore and analyze structured domain data transparently. While Alfred currently connects to Neo4j, Databricks, and Azure OpenAI, it remains backend agnostic and can integrate other databases, knowledge graphs, or AI engines without changing the core interaction patterns.
 
-Alfred also includes a **knowledge graph explorer** for navigating your domain model and relationships, a dedicated **skills workspace** for creating and editing capabilities, and a **settings page** to customize the prompt on user level.
-
-![Knowledge Store graph view](./demo/app-knowledge-store.png)
-
 ## Domain Adoption with Semantic Knowledge Graphs
 
 Alfred helps teams adopt data assistants by making domain knowledge explicit in a semantic graph. Users can:
