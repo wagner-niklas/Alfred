@@ -1,21 +1,11 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import type { SettingsResponse } from "@/lib/settings/types";
 import { useSettings } from "@/lib/settings/hooks";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 // Local helper type used while editing settings client-side.
@@ -72,26 +62,7 @@ function SettingsPageInner() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 px-4">
-        <SidebarTrigger />
-        {/*<Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem className="hidden md:block">
-              <BreadcrumbLink asChild>
-                <Link
-                  href={userIdFromQuery ? `/alfred?user_id=${encodeURIComponent(userIdFromQuery)}` : "/alfred"}
-                >
-                  Home
-                </Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator className="hidden md:block" />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Settings</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>*/}  
-      </header>
+      <header className="flex h-16 shrink-0 items-center gap-2 px-4" />
 
       <main className="flex-1 overflow-auto">
           <div className="container mx-auto max-w-4xl py-8 space-y-6">

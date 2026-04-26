@@ -19,6 +19,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { ThreadListPrimitive } from "@assistant-ui/react";
 
@@ -32,22 +34,23 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 
 export function AppSidebar({ children, ...props }: AppSidebarProps) {
   const pathname = usePathname();
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
 
   return (
-    <Sidebar {...props}>
+    <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="aui-sidebar-header mb-2">
-        <div className="aui-sidebar-header-content items-center justify-between">
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton size="lg" asChild>
-                <div className="aui-sidebar-header-heading mr-6 gap-0.5 leading-none">
-                  <span className="aui-sidebar-header-title text-xl font-mono">
-                    Alfred
-                  </span>
-                </div>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
+        <div className="aui-sidebar-header-content flex h-8 w-full items-center justify-between">
+          {isCollapsed ? (
+            <SidebarTrigger className="mx-auto" />
+          ) : (
+            <>
+              <Link href="/alfred" className="aui-sidebar-header-title text-xl font-mono leading-none pl-1">
+                Alfred
+              </Link>
+              <SidebarTrigger />
+            </>
+          )}
         </div>
       </SidebarHeader>
 
@@ -55,54 +58,46 @@ export function AppSidebar({ children, ...props }: AppSidebarProps) {
         {/* 1) Global "New thread" entry at the very top */}
         <SidebarMenu className="mb-3">
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === "/alfred"}>
+            <SidebarMenuButton asChild isActive={pathname === "/alfred"} tooltip="New thread" className="py-0">
               <ThreadListPrimitive.New asChild>
                 <Link href="/alfred">
-                  <span className="flex items-center gap-2">
-                    <PlusIcon className="h-4 w-4 rounded-md bg-primary/10"/>
-                    <span>New thread</span>
-                  </span>
+                  <PlusIcon className="h-4 w-4" />
+                  <span className="group-data-[collapsible=icon]:hidden">New thread</span>
                 </Link>
               </ThreadListPrimitive.New>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === "/graph"}>
+            <SidebarMenuButton asChild isActive={pathname === "/graph"} tooltip="Knowledge Store" className="py-0">
               <Link href="/graph">
-                <span className="flex items-center gap-2">
-                  <DatabaseIcon className="h-4 w-4" />
-                  <span>Knowledge Store</span>
-                </span>
+                <DatabaseIcon className="h-4 w-4 shrink-0" />
+                <span className="group-data-[collapsible=icon]:hidden">Knowledge Store</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === "/skills"}>
+            <SidebarMenuButton asChild isActive={pathname === "/skills"} tooltip="Skills" className="py-0">
               <Link href="/skills">
-                <span className="flex items-center gap-2">
-                  <SkillsIcon className="h-4 w-4" />
-                  <span>Skills</span>
-                </span>
+                <SkillsIcon className="h-4 w-4 shrink-0" />
+                <span className="group-data-[collapsible=icon]:hidden">Skills</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === "/settings"}>
+            <SidebarMenuButton asChild isActive={pathname === "/settings"} tooltip="Settings" className="py-0">
               <Link href="/settings">
-                <span className="flex items-center gap-2">
-                  <SettingsIcon className="h-4 w-4" />
-                  <span>Settings</span>
-                </span>
+                <SettingsIcon className="h-4 w-4 shrink-0" />
+                <span className="group-data-[collapsible=icon]:hidden">Settings</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
 
         {/* 3) Search + global Alfred thread history – visible on all pages */}
-        <ThreadList />
+        {!isCollapsed && <ThreadList />}
 
         {/* Optional per-page sidebar content below the shared thread list */}
-        {children}
+        {!isCollapsed && children}
       </SidebarContent>
 
       <SidebarRail />

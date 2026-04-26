@@ -262,36 +262,8 @@ const ThreadListItem: FC = () => {
   const isOnAlfred = pathname?.startsWith("/alfred");
   const [isRenaming, setIsRenaming] = useState(false);
 
-  const metaById = useContext(ThreadMetaContext);
   const search = useContext(ThreadSearchContext);
   const { id } = aui.threadListItem().getState();
-
-  const dayLabel = useMemo(() => {
-    if (!metaById || !id) return "";
-    const record = metaById[id as string];
-    if (!record?.updatedAt) return "";
-
-    const updated = new Date(record.updatedAt);
-    if (Number.isNaN(updated.getTime())) return "";
-
-    const startOfDay = (d: Date) => {
-      const date = new Date(d);
-      date.setHours(0, 0, 0, 0);
-      return date;
-    };
-
-    const now = new Date();
-    const todayStart = startOfDay(now);
-    const yesterdayStart = new Date(todayStart);
-    yesterdayStart.setDate(todayStart.getDate() - 1);
-    const sevenDaysAgo = new Date(todayStart);
-    sevenDaysAgo.setDate(todayStart.getDate() - 7);
-
-    if (updated >= todayStart) return "Today";
-    if (updated >= yesterdayStart && updated < todayStart) return "Yesterday";
-    if (updated >= sevenDaysAgo && updated < yesterdayStart) return "Last 7 days";
-    return "Older";
-  }, [metaById, id]);
 
   const matchesSearch = useMemo(() => {
     const query = search?.query.trim().toLowerCase() ?? "";
@@ -337,7 +309,7 @@ const ThreadListItem: FC = () => {
 
   return (
     <ThreadListItemPrimitive.Root
-      className={`aui-thread-list-item flex items-center gap-2 rounded-lg transition-all duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-active:bg-muted hover:bg-muted ${
+      className={`aui-thread-list-item flex items-center gap-2 rounded-lg transition-all duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground hover:bg-sidebar-accent/50 ${
         matchesSearch && !isHiding
           ? "opacity-100 translate-y-0 max-h-24"
           : "opacity-0 -translate-y-1 max-h-0 overflow-hidden"
@@ -346,7 +318,7 @@ const ThreadListItem: FC = () => {
       onMouseLeave={() => setIsHovered(false)}
     >
       <ThreadListItemPrimitive.Trigger
-        className="aui-thread-list-item-trigger flex-grow px-3 py-2 text-start"
+        className="aui-thread-list-item-trigger flex-grow px-2 py-1.5 text-start"
         onClick={async (event) => {
           // When we're not on the Alfred page, avoid creating/selecting
           // threads via the runtime. Treat this as a pure navigation
@@ -398,7 +370,7 @@ const ThreadListItem: FC = () => {
             onCancel={() => setIsRenaming(false)}
           />
         ) : (
-          <ThreadListItemTitle dayLabel={dayLabel} />
+          <ThreadListItemTitle />
         )}
       </ThreadListItemPrimitive.Trigger>
       {isHovered && (
@@ -415,7 +387,7 @@ type ThreadListItemTitleProps = {
 const ThreadListItemTitle: FC<ThreadListItemTitleProps> = ({ dayLabel }) => {
   return (
     <div className="flex flex-col">
-      <span className="aui-thread-list-item-title text-sm">
+      <span className="aui-thread-list-item-title text-xs truncate">
         <ThreadListItemPrimitive.Title fallback="Chat" />
       </span>
       {dayLabel && (
@@ -482,7 +454,7 @@ const ThreadListItemOverflowMenu: FC<ThreadListItemOverflowMenuProps> = ({
         <TooltipIconButton
           className="aui-thread-list-item-menu mr-2 ml-auto size-6 p-0 text-muted-foreground hover:text-foreground"
           variant="ghost"
-          tooltip="Thread actions"
+          tooltip="Actions"
           onClick={(e) => {
             // Prevent triggering thread selection when opening the menu.
             e.stopPropagation();
@@ -499,24 +471,24 @@ const ThreadListItemOverflowMenu: FC<ThreadListItemOverflowMenuProps> = ({
         <div className="flex flex-col gap-0.5">
           <button
             type="button"
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1 text-xs text-foreground hover:bg-muted"
+            className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm text-foreground hover:bg-muted"
             onClick={(e) => {
               e.stopPropagation();
               onRename();
             }}
           >
-            <PencilIcon className="h-3.5 w-3.5" />
+            <PencilIcon className="h-4 w-4" />
             <span>Rename Thread </span>
           </button>
           <ThreadListItemPrimitive.Archive asChild>
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-sm px-2 py-1 text-xs text-foreground hover:bg-muted"
+              className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm text-foreground hover:bg-muted"
               onClick={(e) => {
                 e.stopPropagation();
               }}
             >
-              <ArchiveIcon className="h-3.5 w-3.5" />
+              <ArchiveIcon className="h-4 w-4" />
               <span>Archive Thread</span>
             </button>
           </ThreadListItemPrimitive.Archive>

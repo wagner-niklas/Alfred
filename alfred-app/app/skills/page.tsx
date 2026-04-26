@@ -1,16 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import type { SkillDetail, SkillSummary } from "@/lib/skills/types";
 
@@ -273,22 +263,7 @@ export default function SkillsPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 px-4 border-b">
-        <SidebarTrigger />
-        {/*<Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem className="hidden md:block">
-              <BreadcrumbLink asChild>
-                <Link href="/alfred">Home</Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator className="hidden md:block" />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Skills</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>*/}
-      </header>
+      <header className="flex h-16 shrink-0 items-center gap-2 px-4 border-b" />
 
       <div className="flex h-[calc(100dvh-4rem)] flex-1 overflow-hidden bg-background">
           <aside className="flex w-80 shrink-0 flex-col border-r bg-background/80">

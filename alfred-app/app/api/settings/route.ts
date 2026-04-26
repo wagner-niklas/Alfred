@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { attachSetCookieHeader, getOrCreateUserId } from "@/lib/user";
+import { getOrCreateUserId } from "@/lib/user";
 import { UserSettings, getUserSettings, upsertUserSettings } from "@/lib/db";
 import type { SettingsPayload, SettingsResponse } from "@/lib/settings/types";
 
@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     userId: settings.userId,
     additionalInstructions: settings.additionalInstructions ?? null,
   });
-  return attachSetCookieHeader(response, setCookieHeader);
+  return response;
 }
 
 export async function PUT(req: Request) {
@@ -39,5 +39,5 @@ export async function PUT(req: Request) {
     additionalInstructions: updated.additionalInstructions ?? null,
   });
 
-  return attachSetCookieHeader(response, setCookieHeader);
+  return response;
 }

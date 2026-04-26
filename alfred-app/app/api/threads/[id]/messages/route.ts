@@ -13,7 +13,7 @@
 //       as JSON in SQLite via lib/db.
 
 import { appendMessage, getMessages } from "@/lib/db";
-import { attachSetCookieHeader, getOrCreateUserId } from "@/lib/user";
+import { getOrCreateUserId } from "@/lib/user";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -24,7 +24,7 @@ export async function GET(req: Request, context: RouteContext) {
   const { id } = await context.params;
   const messages = getMessages(userId, id);
   const response = Response.json(messages);
-  return attachSetCookieHeader(response, setCookieHeader);
+  return response;
 }
 
 export async function POST(req: Request, context: RouteContext) {
@@ -42,5 +42,5 @@ export async function POST(req: Request, context: RouteContext) {
   appendMessage(userId, { id, threadId, role, content, createdAt });
 
   const response = new Response(null, { status: 204 });
-  return attachSetCookieHeader(response, setCookieHeader);
+  return response;
 }

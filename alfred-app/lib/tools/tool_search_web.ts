@@ -2,10 +2,10 @@ import { tool } from "ai";
 import { z } from "zod";
 import { Ollama } from "ollama";
 
-export const web_search = () =>
+export const search_web = () =>
   tool({
     description:
-      "Search the web",
+      "Use concise, keyword-based `search_web` queries.",
     inputSchema: z.object({
       query: z
         .string()

@@ -122,23 +122,25 @@ async function getEmbeddingVector(query: string): Promise<number[]> {
 // the notebook's retrieval_query for Table context. The main query will
 // prepend an appropriate MATCH/WHERE clause.
 
-export const fetch_knowledge_store = () =>
+export const search_database_schema = () =>
   tool({
     description:
-      "Fetch tables, columns, and their relationships from the Knowledge Store based on a subset of the information schema.",
+      "Use concise keywords to find a small set of tables, columns, and their semantic relationships about the database schema encoded as a Knowledge Graph (Neo4j). " +
+      "Does not return the full schema; only returns top-matching entities (limited by a top-K parameter).",
     inputSchema: z.object({
-      query: z
+      search: z
         .string()
+        .min(1)
         .describe(
-          "The search string."
+          "Keywords describing concrete entities you want to find.",
         ),
     }),
-    execute: async ({ query }) => {
+    execute: async ({ search }) => {
       const session = getSession();
 
       try {
         // --- 1) Create embedding for the natural language query ---
-        const embedding = await getEmbeddingVector(query);
+        const embedding = await getEmbeddingVector(search);
 
         // --- 2) Vector search over Table nodes ---
         const vectorSearchCypher = `
@@ -160,11 +162,11 @@ ORDER BY score DESC
 
         if (tableNames.length === 0) {
           return {
-            query,
+            search,
             vector_matches: [],
             retrieval: [],
             warning:
-              "No tables found from vector index for the provided query. Ensure embeddings and vector index are created.",
+              "No tables found from vector index for the provided search term. Ensure embeddings and vector index are created.",
           };
         }
 
@@ -210,7 +212,7 @@ ${TABLE_RETRIEVAL_CYPHER}
         );
 
         return {
-          query,
+          search,
           vector_matches: tableNames,
           retrieval: retrievalData,
         };
