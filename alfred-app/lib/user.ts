@@ -50,19 +50,3 @@ export function getOrCreateUserId(
 
   return { userId, setCookieHeader };
 }
-
-/**
- * Convenience helper to attach a Set-Cookie header (when present) to a
- * Response or NextResponse instance. This keeps cookie handling consistent
- * across API routes while avoiding duplicate header logic.
- */
-export function attachSetCookieHeader<T extends Response>(
-  response: T,
-  setCookieHeader?: string,
-): T {
-  if (setCookieHeader) {
-    response.headers.set("Set-Cookie", setCookieHeader);
-  }
-
-  return response;
-}

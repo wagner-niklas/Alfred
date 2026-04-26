@@ -4,9 +4,10 @@ import {
   CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ClockIcon,
   CopyIcon,
   PencilIcon,
-  RefreshCwIcon,
+  RepeatIcon,
   Square,
   Search as SearchIcon,
 } from "lucide-react";
@@ -46,7 +47,7 @@ export const Thread: FC = () => {
         <ThreadPrimitive.Root
           className="aui-root aui-thread-root @container flex h-full flex-col bg-background"
           style={{
-            ["--thread-max-width" as string]: "48rem",
+            ["--thread-max-width" as string]: "42rem",
           }}
         >
           <ThreadPrimitive.Viewport
@@ -56,7 +57,7 @@ export const Thread: FC = () => {
           >     
             {/* EMPTY STATE: welcome + smaller input, slightly higher on the page */}
             <ThreadPrimitive.If empty>
-              <div className="flex flex-1 items-start justify-center pt-14 md:pt-20">
+              <div className="flex flex-1 items-start justify-center pt-14 md:pt-35">
                 <div className="flex w-full max-w-[var(--thread-max-width)] flex-col items-center">
                   <ThreadWelcome />
 
@@ -149,26 +150,14 @@ const ThreadWelcome: FC = () => {
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -5 }}
-          className="text-sm tracking-[0.2em] text-muted-foreground/70 mb-1 font-mono"
-          style={{
-            fontWeight: 500,
-          }}
-        >
-          Alfred
-        </m.h2>
-
-        {/* Slogan + subtext */}
-        <m.h1
-          initial={{ opacity: 0, y: 0 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 10 }}
+        
           className="aui-thread-welcome-message-motion-1 text-2xl leading-tight font-sans"
           style={{
             fontWeight: "normal",
           }}
         >
           {slogan}
-        </m.h1>
+        </m.h2>
 
         <m.div
           initial={{ opacity: 0, y: 10 }}
@@ -356,7 +345,7 @@ const ThreadSuggestions: FC<ThreadSuggestionsProps> = ({ isVisible, query }) => 
   return (
     <div
       className={cn(
-        "aui-thread-welcome-suggestions mb-1 flex w-full flex-col gap-1 px-1.5 pb-1 transition-all duration-250 ease-out",
+        "aui-thread-welcome-suggestions mb-1 flex w-full flex-col gap-0.5 px-1.5 pb-1 transition-all duration-250 ease-out",
         isVisible
           ? "opacity-100 translate-y-0"
           : "opacity-0 translate-y-1 pointer-events-none",
@@ -382,14 +371,14 @@ const ThreadSuggestions: FC<ThreadSuggestionsProps> = ({ isVisible, query }) => 
           >
             <Button
               variant="ghost"
-              className="aui-thread-welcome-suggestion h-auto w-full flex flex-nowrap items-center justify-start gap-2 rounded-3xl border-none px-4 py-2.5 text-left text-sm dark:hover:bg-accent/60"
+              className="aui-thread-welcome-suggestion h-auto w-full flex flex-nowrap items-center justify-start gap-2 rounded-xl border-none px-4 py-2.5 text-left text-sm dark:hover:bg-accent/60"
               // Prevent the textarea from blurring before the suggestion click
               // is handled, so the suggestion can still trigger a send.
               onMouseDown={(e) => e.preventDefault()}
               aria-label={suggestedAction.action}
             >
               <SearchIcon className="aui-thread-welcome-suggestion-icon mr-1 h-4 w-4 flex-shrink-0 text-muted-foreground/80" />
-              <span className="aui-thread-welcome-suggestion-text-1 truncate text-muted-foreground">
+              <span className="aui-thread-welcome-suggestion-text-1 text-muted-foreground">
                 {suggestedAction.action}
               </span>
             </Button>
@@ -398,8 +387,8 @@ const ThreadSuggestions: FC<ThreadSuggestionsProps> = ({ isVisible, query }) => 
       ))}
 
       {filteredRecentSuggestions.length > 0 && (
-        <div className="aui-thread-welcome-suggestions-recent-label px-3 pt-2 text-xs font-medium text-muted-foreground/70">
-          Recent
+        <div className="aui-thread-welcome-suggestions-recent-label flex items-center gap-1.5 px-3 pt-1 text-xs font-medium text-muted-foreground/70">
+          <span>Recent</span>
         </div>
       )}
 
@@ -419,11 +408,11 @@ const ThreadSuggestions: FC<ThreadSuggestionsProps> = ({ isVisible, query }) => 
           >
             <Button
               variant="ghost"
-              className="aui-thread-welcome-suggestion h-auto w-full flex flex-nowrap items-center justify-start gap-2 rounded-3xl border-none px-4 py-2.5 text-left text-sm dark:hover:bg-accent/60"
+              className="aui-thread-welcome-suggestion h-auto w-full flex flex-nowrap items-center justify-start gap-1.5 rounded-xl border-none px-4 py-2.5 text-left text-sm dark:hover:bg-accent/60"
               onMouseDown={(e) => e.preventDefault()}
               aria-label={suggestedAction.action}
             >
-              <SearchIcon className="aui-thread-welcome-suggestion-icon mr-1 h-4 w-4 flex-shrink-0 text-muted-foreground/80" />
+              <ClockIcon className="aui-thread-welcome-suggestion-icon mr-1 h-4 w-4 flex-shrink-0 text-muted-foreground/80" />
               <span className="aui-thread-welcome-suggestion-text-1 truncate text-muted-foreground">
                 {suggestedAction.action}
               </span>
@@ -520,7 +509,7 @@ const Composer: FC<ComposerProps> = ({
           placeholder={placeholder}
           className={cn(
             "aui-composer-input mb-1 w-full resize-none bg-transparent px-3.5 pt-1.5 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-0",
-            variant === "default" ? "min-h-8" : "min-h-12 max-h-32"
+            variant === "default" ? "min-h-8" : "min-h-16 max-h-32"
           )}
           rows={1}
           autoFocus
@@ -604,6 +593,7 @@ const AssistantMessage: FC = () => {
               ReasoningGroup: ReasoningGroup,
               tools: { Fallback: ToolFallback },
             }}
+
           />
           <MessageError />
         </div>
@@ -640,7 +630,7 @@ const AssistantActionBar: FC = () => {
       {/* RELOAD */}
       <ActionBarPrimitive.Reload asChild>
         <TooltipIconButton tooltip="Rewrite Thread">
-          <RefreshCwIcon />
+          <RepeatIcon />
         </TooltipIconButton>
       </ActionBarPrimitive.Reload>
     </ActionBarPrimitive.Root>

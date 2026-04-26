@@ -13,14 +13,14 @@
 // abstraction can be wired to real auth in production.
 
 import { createThread, getThreads } from "@/lib/db";
-import { attachSetCookieHeader, getOrCreateUserId } from "@/lib/user";
+import { getOrCreateUserId } from "@/lib/user";
 
 export async function GET(req: Request) {
   const { userId, setCookieHeader } = getOrCreateUserId(req);
   const threads = getThreads(userId);
 
   const response = Response.json(threads);
-  return attachSetCookieHeader(response, setCookieHeader);
+  return response;
 }
 
 export async function POST(req: Request) {
@@ -30,5 +30,5 @@ export async function POST(req: Request) {
 
   const thread = createThread(userId, id, title);
   const response = Response.json(thread);
-  return attachSetCookieHeader(response, setCookieHeader);
+  return response;
 }

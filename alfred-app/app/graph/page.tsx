@@ -15,37 +15,12 @@
 // The goal is to keep layout/navigation concerns here, and put all
 // graph-specific logic and visualization code into components/graph/*.
 
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
-import Link from "next/link";
 import { GraphView } from "@/components/graph/graph-view";
 
 export default function GraphPage() {
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 px-4">
-        <SidebarTrigger />
-        {/*<Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem className="hidden md:block">
-              <BreadcrumbLink asChild>
-                <Link href="/alfred">Home</Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator className="hidden md:block" />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Knowledge Store</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>*/}
-      </header>
+      <header className="flex h-16 shrink-0 items-center gap-2 px-4" />
       <div className="flex-1 overflow-hidden">
         <GraphView />
       </div>

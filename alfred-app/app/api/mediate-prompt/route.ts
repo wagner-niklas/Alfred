@@ -3,7 +3,7 @@ import { createAzure } from "@ai-sdk/azure";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
 
-import { fetch_knowledge_store } from "@/lib/tools/tool_fetch_knowledge_store";
+import { search_database_schema } from "@/lib/tools/tool_search_database_schema";
 import { MEDIATE_PROMPT_SYSTEM } from "@/lib/prompts/mediate-prompt";
 
 const chatProvider = process.env.CHAT_PROVIDER || "azure";
@@ -63,14 +63,14 @@ export async function POST(req: Request) {
 
   try {
     // 1) Use the Neo4j tool to fetch relevant schema / knowledge-store context
-    const neo4jTool = fetch_knowledge_store();
+    const neo4jTool = search_database_schema();
     if (!neo4jTool || !neo4jTool.execute) {
       throw new Error("Failed to initialize Neo4j tool");
     }
 
     const neo4jResult = await neo4jTool.execute(
       {
-        query: prompt,
+        search: prompt,
       },
       undefined as any,
     );

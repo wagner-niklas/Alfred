@@ -52,7 +52,7 @@ export function Starfield() {
   return (
     <div
       aria-hidden="true"
-      className="starfield-root pointer-events-none fixed inset-0 z-40 overflow-hidden"
+      className="starfield-root pointer-events-none fixed inset-0 z-11 overflow-hidden"
     >
       {stars.map((star) => (
         <span

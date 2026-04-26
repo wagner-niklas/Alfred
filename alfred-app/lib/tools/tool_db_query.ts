@@ -65,9 +65,9 @@ const qualifyTables = (sql: string) => {
   );
 };
 
-export const run_sql_query = () =>
+export const db_query = () =>
   tool({
-    description: "Run a read-only SQL query on the database and returns the results.",
+    description: "Run a read-only SQL query on the database and returns the results. No queries to the information schema are allowed.",
     inputSchema: z.object({
       sql_query: z.string().describe("The SQL query statement."),
       description: z.string().describe(

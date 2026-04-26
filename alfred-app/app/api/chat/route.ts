@@ -9,7 +9,7 @@ import {
 import fs from "fs";
 import path from "path";
 import { getTools } from "@/lib/tools/index";
-import { attachSetCookieHeader, getOrCreateUserId } from "@/lib/user";
+import { getOrCreateUserId } from "@/lib/user";
 import { getUserSettings } from "@/lib/db";
 import { listSkillSummaries } from "@/lib/skills/utils";
 
@@ -149,6 +149,5 @@ export async function POST(req: Request) {
 				: undefined,
 	});
 
-  const response = await result.toUIMessageStreamResponse();
-  return attachSetCookieHeader(response, setCookieHeader);
+  return result.toUIMessageStreamResponse();
 }

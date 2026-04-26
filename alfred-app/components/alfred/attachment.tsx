@@ -395,8 +395,8 @@ export const ComposerAddAttachment: FC = () => {
           size="sm"
           className={cn(
             "aui-composer-enhance ml-1 h-[34px] w-auto rounded-full px-3 text-xs font-medium",
-            "bg-blue-100 hover:bg-blue-200 text-blue-700",
-            "dark:bg-blue-900 dark:hover:bg-blue-800 dark:text-blue-100",
+            "bg-primary/10 hover:bg-primary/20 text-primary",
+            "dark:bg-primary/20 dark:hover:bg-primary/30 dark:text-primary",
             isEnhancing && "opacity-80 cursor-wait aui-composer-enhance-pulse",
           )}
           disabled={isEnhancing}

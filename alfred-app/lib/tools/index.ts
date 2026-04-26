@@ -1,23 +1,25 @@
 import { view } from "@/lib/tools/tool_view";
 import { thinking_tool } from "@/lib/tools/tool_thinking_tool";
-import { fetch_knowledge_store } from "@/lib/tools/tool_fetch_knowledge_store";
-import { run_sql_query } from "@/lib/tools/tool_run_sql_query";
-import { web_search } from "@/lib/tools/tool_web_search";
-import { web_fetch } from "@/lib/tools/tool_web_fetch";
+import { search_database_schema } from "@/lib/tools/tool_search_database_schema";
+import { fetch_database_schema_elements } from "@/lib/tools/tool_fetch_database_schema_elements_cypher";
+import { db_query } from "@/lib/tools/tool_db_query";
+import { search_web } from "@/lib/tools/tool_search_web";
+import { fetch_url } from "@/lib/tools/tool_fetch_url";
 
 export const getTools = () => {
 	const baseTools = {
 		thinking_tool: thinking_tool(),
     view: view(),
-	  fetch_knowledge_store: fetch_knowledge_store(),
-		run_sql_query: run_sql_query(),
+	  search_database_schema: search_database_schema(),
+		fetch_database_schema_elements: fetch_database_schema_elements(),
+		db_query: db_query(),
 	};
 
   if (process.env.OLLAMA_API_KEY) {
     return {
       ...baseTools,
-      web_search: web_search(),
-      web_fetch: web_fetch(),
+      web_search: search_web(),
+      web_fetch: fetch_url(),
     };
   }
 

@@ -2,10 +2,10 @@ import { tool } from "ai";
 import { z } from "zod";
 import { Ollama } from "ollama";
 
-export const web_fetch = () =>
+export const fetch_url = () =>
   tool({
     description:
-      "Fetch the contents of a web page at a given URL.",
+      "Use when search results are insufficient but a specific site appears informative and its full page content would likely provide meaningful additional insights.",
     inputSchema: z.object({
       url: z
         .string()

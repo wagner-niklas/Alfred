@@ -11,7 +11,7 @@
 //       in SQLite via lib/db, and returns `{ title }`.
 
 import { updateThread } from "@/lib/db";
-import { attachSetCookieHeader, getOrCreateUserId } from "@/lib/user";
+import { getOrCreateUserId } from "@/lib/user";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -49,7 +49,7 @@ export async function POST(req: Request, context: RouteContext) {
         .map((part) => part.text);
       const combined = textParts.join(" ").trim();
       if (combined) {
-        title = combined.length > 15 ? combined.slice(0, 15) + "..." : combined;
+        title = combined.length > 30 ? combined.slice(0, 30) + "..." : combined;
       }
     }
   }
@@ -57,5 +57,5 @@ export async function POST(req: Request, context: RouteContext) {
   updateThread(userId, id, { title });
 
   const response = Response.json({ title });
-  return attachSetCookieHeader(response, setCookieHeader);
+  return response;
 }
