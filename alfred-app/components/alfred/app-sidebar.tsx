@@ -9,6 +9,8 @@ import {
   Blocks as SkillsIcon,
   Settings as SettingsIcon,
 } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { SaturnIcon } from "@hugeicons/core-free-icons";
 
 import { ThreadList } from "@/components/alfred/thread-list";
 import {
@@ -45,8 +47,8 @@ export function AppSidebar({ children, ...props }: AppSidebarProps) {
             <SidebarTrigger className="mx-auto" />
           ) : (
             <>
-              <Link href="/alfred" className="aui-sidebar-header-title text-xl font-mono leading-none pl-1">
-                Alfred
+              <Link href="/alfred" className="aui-sidebar-header-title leading-none pl-1">
+                <HugeiconsIcon icon={SaturnIcon} className="h-6 w-6 text-primary" />
               </Link>
               <SidebarTrigger />
             </>
@@ -61,33 +63,25 @@ export function AppSidebar({ children, ...props }: AppSidebarProps) {
             <SidebarMenuButton asChild isActive={pathname === "/alfred"} tooltip="New thread" className="py-0">
               <ThreadListPrimitive.New asChild>
                 <Link href="/alfred">
-                  <PlusIcon className="h-4 w-4" />
-                  <span className="group-data-[collapsible=icon]:hidden">New thread</span>
+                  <PlusIcon className={pathname === "/alfred" ? "h-4 w-4 text-primary" : "h-4 w-4 hover:text-primary"} />
+                  <span className={pathname === "/alfred" ? "text-primary group-data-[collapsible=icon]:hidden" : "group-data-[collapsible=icon]:hidden"}>New thread</span>
                 </Link>
               </ThreadListPrimitive.New>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === "/graph"} tooltip="Knowledge Store" className="py-0">
-              <Link href="/graph">
-                <DatabaseIcon className="h-4 w-4 shrink-0" />
-                <span className="group-data-[collapsible=icon]:hidden">Knowledge Store</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === "/skills"} tooltip="Skills" className="py-0">
               <Link href="/skills">
-                <SkillsIcon className="h-4 w-4 shrink-0" />
-                <span className="group-data-[collapsible=icon]:hidden">Skills</span>
+                <SkillsIcon className={pathname === "/skills" ? "h-4 w-4 shrink-0 text-primary" : "h-4 w-4 shrink-0 hover:text-primary"} />
+                <span className={pathname === "/skills" ? "text-primary group-data-[collapsible=icon]:hidden" : "group-data-[collapsible=icon]:hidden"}>Skills</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === "/settings"} tooltip="Settings" className="py-0">
               <Link href="/settings">
-                <SettingsIcon className="h-4 w-4 shrink-0" />
-                <span className="group-data-[collapsible=icon]:hidden">Settings</span>
+                <SettingsIcon className={pathname === "/settings" ? "h-4 w-4 shrink-0 text-primary" : "h-4 w-4 shrink-0 hover:text-primary"} />
+                <span className={pathname === "/settings" ? "text-primary group-data-[collapsible=icon]:hidden" : "group-data-[collapsible=icon]:hidden"}>Settings</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

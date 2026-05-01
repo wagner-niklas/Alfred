@@ -62,7 +62,7 @@
   --card-foreground: oklch(0.147 0.004 49.25);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.147 0.004 49.25);
-  --primary: oklch(0.5539 0.0547 162.2);
+  --primary: oklch(0.6154 0.1727 256.5);
   --primary-foreground: oklch(0.985 0.001 106.423);
   --secondary: oklch(0.97 0.001 106.424);
   --secondary-foreground: oklch(0.216 0.006 56.043);
@@ -148,6 +148,48 @@
   }
   50% {
     opacity: 1;
+  }
+}
+
+.shooting-star {
+  /*
+    Shooting star tail: orient the bright "head" of the star in the
+    direction of travel and fade out behind it.
+
+    We keep the orientation dynamic via --shooting-star-angle (set per
+    shooting star in the React component) and use a gradient that starts
+    bright and fades to transparent so the tail trails along the flight
+    path instead of leading it.
+  */
+  background: linear-gradient(
+    270deg,
+    rgba(255, 255, 255, 0.85),
+    rgba(255, 255, 255, 0.18),
+    transparent
+  );
+  box-shadow: 0 0 5px rgba(255, 255, 255, 0.45);
+  opacity: 0;
+  transform: rotate(var(--shooting-star-angle));
+  transform-origin: right center;
+}
+
+@keyframes shooting-star {
+  0%,
+  82% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(var(--shooting-star-angle));
+  }
+  86% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(
+        var(--shooting-star-travel-x),
+        var(--shooting-star-travel-y),
+        0
+      )
+      rotate(var(--shooting-star-angle));
   }
 }
 

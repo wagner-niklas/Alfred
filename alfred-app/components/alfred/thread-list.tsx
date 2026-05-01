@@ -309,7 +309,7 @@ const ThreadListItem: FC = () => {
 
   return (
     <ThreadListItemPrimitive.Root
-      className={`aui-thread-list-item flex items-center gap-2 rounded-lg transition-all duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground hover:bg-sidebar-accent/50 ${
+      className={`aui-thread-list-item flex items-center gap-2 rounded-lg transition-all duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-active:bg-sidebar-accent data-active:text-primary hover:bg-sidebar-accent/50 hover:text-primary ${
         matchesSearch && !isHiding
           ? "opacity-100 translate-y-0 max-h-24"
           : "opacity-0 -translate-y-1 max-h-0 overflow-hidden"

@@ -2,8 +2,6 @@
 
 import { Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import type { SettingsResponse } from "@/lib/settings/types";
 import { useSettings } from "@/lib/settings/hooks";
 import { useSearchParams } from "next/navigation";
@@ -28,6 +26,7 @@ function SettingsPageInner() {
   const userIdFromQuery = searchParams?.get("user_id")?.trim() || null;
   const { data, loading, saving, error, saved, update, save } = useSettings();
   const [deletingAll, setDeletingAll] = useState(false);
+  const [resettingDb, setResettingDb] = useState(false);
 
   const withBase = (current: DraftSettings): SettingsResponse =>
     ensureSettingsBase(current, data ?? null);
@@ -60,6 +59,34 @@ function SettingsPageInner() {
     }
   };
 
+  const handleResetDatabase = async () => {
+    const confirmed = window.confirm(
+      "Reset the knowledge graph database? This will delete all current table and column nodes and recreate them from the Databricks schema. This cannot be undone.",
+    );
+
+    if (!confirmed) return;
+
+    setResettingDb(true);
+
+    try {
+      const res = await fetch("/api/schema/reset", { method: "POST" });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to reset database: ${res.status}`);
+      }
+      alert("Knowledge graph database has been reset successfully.");
+    } catch (err) {
+      console.error(err);
+      alert(
+        err instanceof Error
+          ? err.message
+          : "Failed to reset database.",
+      );
+    } finally {
+      setResettingDb(false);
+    }
+  };
+
   return (
     <>
       <header className="flex h-16 shrink-0 items-center gap-2 px-4" />
@@ -68,70 +95,19 @@ function SettingsPageInner() {
           <div className="container mx-auto max-w-4xl py-8 space-y-6">
             <h1 className="text-2xl font-semibold">Settings</h1>
 
-            {loading && (
-              <p className="text-sm text-muted-foreground">Loading…</p>
-            )}
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            {saved && !error && (
-              <p className="text-sm text-green-600">
-                Settings saved successfully.
-              </p>
-            )}
-
-            <div className="grid gap-6 md:grid-cols-1">
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Additional instructions</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    Advanced. These instructions will be appended to the system
-                    prompt for Alfred and apply to all future conversations for
-                    this browser.
-                  </p>
-                  <div className="grid gap-2">
-                    <Label htmlFor="additional-instructions">
-                      Custom system instructions
-                    </Label>
-                    <textarea
-                      id="additional-instructions"
-                      className="min-h-[120px] w-full resize-y rounded-md border bg-background p-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      placeholder="Answer always in German, focus on Data-Engineering-Best-Practices, avoid too much small talk ..."
-                      value={data?.additionalInstructions ?? ""}
-                      onChange={(event) =>
-                        update((current) => {
-                          const base = withBase(current);
-                          return {
-                            ...base,
-                            additionalInstructions:
-                              event.target.value.trim() === ""
-                                ? null
-                                : event.target.value,
-                          };
-                        })
-                      }
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
             <div className="flex flex-col gap-4 border-t pt-6 mt-4">
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-4">
-                  <Button onClick={() => void save()} disabled={saving}>
-                    {saving ? "Saving…" : "Save settings"}
-                  </Button>
+
                   {!saving && !loading && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-sm text-muted-foreground">
                       Settings are stored locally in the Alfred SQLite database for
                       this browser's anonymous user id.
                     </p>
                   )}
                 </div>
                 {!loading && (
-                  <p className="text-[10px] text-muted-foreground/80 font-mono">
+                  <p className="text-xs font-mono">
                     Current user id: {data?.userId || "(not set)"}
                   </p>
                 )}
@@ -155,6 +131,28 @@ function SettingsPageInner() {
                   disabled={deletingAll || saving || loading}
                 >
                   {deletingAll ? "Deleting…" : "Delete everything"}
+                </Button>
+              </div>
+
+              <div className="flex items-center justify-between rounded-md border border-warning/20 bg-warning/5 px-3 py-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-warning">
+                    Reset knowledge graph database
+                  </p>
+                  <p className="text-xs text-warning/80">
+                    Delete all table and column nodes from the knowledge graph and
+                    recreate them from the Databricks schema (using DATABRICKS_CATALOG
+                    and DATABRICKS_SCHEMA from .env). This cannot be undone.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={handleResetDatabase}
+                  disabled={resettingDb || saving || loading}
+                >
+                  {resettingDb ? "Resetting…" : "Reset database"}
                 </Button>
               </div>
             </div>

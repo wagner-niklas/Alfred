@@ -11,9 +11,12 @@ import {
   Square,
   Search as SearchIcon,
 } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { SaturnIcon } from "@hugeicons/core-free-icons";
 
 import {
   ActionBarPrimitive,
+  AuiIf,
   BranchPickerPrimitive,
   ComposerPrimitive,
   ErrorPrimitive,
@@ -145,19 +148,27 @@ const ThreadWelcome: FC = () => {
     <div className="aui-thread-welcome-root mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col items-center">
       {/* Centered heading block */}
       <div className="aui-thread-welcome-message w-full px-8 text-center">
-        {/* Alfred header */}
-        <m.h2
-          initial={{ opacity: 0, y: -5 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -5 }}
-        
-          className="aui-thread-welcome-message-motion-1 text-2xl leading-tight font-sans"
-          style={{
-            fontWeight: "normal",
-          }}
+        {/* Icon and slogan in one row */}
+        <m.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          className="mb-3 inline-flex items-center gap-3"
         >
-          {slogan}
-        </m.h2>
+          <HugeiconsIcon icon={SaturnIcon} className="h-8 w-8 text-primary" />
+          <m.h2
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ delay: 0.05 }}
+            className="aui-thread-welcome-message-motion-1 text-2xl shimmer shimmer-duration-5000 leading-tight font-sans"
+            style={{
+              fontWeight: "normal",
+            }}
+          >
+            {slogan}
+          </m.h2>
+        </m.div>
 
         <m.div
           initial={{ opacity: 0, y: 10 }}
@@ -596,6 +607,14 @@ const AssistantMessage: FC = () => {
 
           />
           <MessageError />
+        <AuiIf
+          // Show the "thinking" indicator only for the most recent message, and only while it's still generating.
+          condition={(s) => s.thread.isRunning && s.thread.messages[s.thread.messages.length - 1]?.id === s.message.id}
+        >
+          <div className="flex items-center gap-2 text-muted-foreground">
+                <HugeiconsIcon icon={SaturnIcon} className="size-6 animate-pulse text-primary" />
+          </div>
+        </AuiIf>
         </div>
 
         <div className="aui-assistant-message-footer mt-2 ml-2 flex">

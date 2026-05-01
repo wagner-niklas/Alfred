@@ -4,58 +4,35 @@
 [![Databricks](https://img.shields.io/badge/Databricks-FF3621?logo=databricks&logoColor=fff)](#)
 [![Neo4J](https://img.shields.io/badge/Neo4j-008CC1?logo=neo4j&logoColor=white)](#)
 [![Claude](https://img.shields.io/badge/Agent%20Skills-D97757?logo=claude&logoColor=fff)](#)
-[![Azure](https://custom-icon-badges.demolab.com/badge/%20Azure%20AI-0089D6?logo=msazure&logoColor=white)](#)
-[![ChatGPT](https://custom-icon-badges.demolab.com/badge/OpenAI%20Compatible-74aa9c?logo=openai&logoColor=white)](#)
-[![Ollama](https://img.shields.io/badge/Ollama-fff?logo=ollama&logoColor=000)](#)
+[![ChatGPT](https://custom-icon-badges.demolab.com/badge/OpenAI%20Compatible-74aa9c?logo=openai)](#)
 
-An open, inspectable AI data assistant for working with Agent Skills, semantic knowledge graphs and structured domain data.
+Say it. Query it. Own it.
 
-![App](./demo/app.gif)
+![App](./demo/app.png)
 
-Most production-grade data assistants today are **not open source** and expose only a narrow text box on top of a proprietary stack. This creates three concrete problems:
+Open source is how data stays free. However, most production-grade text-to-sql assistants are **not open source** and expose only a narrow text box on top of a proprietary stack. 
+Alfred addresses this by providing a research-first open-source application:
 
-1. **Opaque, closed implementations**  
-   Commercial text-to-SQL and AI assistants are usually proprietary. Their prompts, tools, and safeguards are not transparent, which makes it difficult to understand how queries are produced or why they might fail in a given infrastructure.
-
-2. **Text-to-SQL without explicit semantics**  
-   LLMs can generate SQL, but real domains rely on rich semantics such as business concepts, evolving schemas, complex joins, and domain rules. In many systems this knowledge remains implicit in dashboards, code, or internal knowledge, forcing the model to infer it from few examples, which is fragile and hard to govern.
-
-3. **Hidden knowledge engineering and invisible semantic layer**  
-   Much of the knowledge engineering work, including defining entities, relationships, and constraints, happens behind the scenes. Domain experts rarely interact with the semantic layer itself and only see final outputs like charts or answers. This makes debugging, improving, and aligning the assistant with the real domain more difficult.
-
-Alfred addresses these issues by providing an **open, inspectable reference implementation**:
-
-- A **semantic knowledge graph explorer** that makes the domain model and its relationships first-class and navigable.
-- A **persistent, multi-thread chat interface** built on Assistant UI, wired to the same semantic layer and data tools
-- A **single, well-defined persistence layer** for chat history (default: local SQLite) that can be replaced with your own database.
-- A **pluggable model abstraction layer** that lets you seamlessly switch between providers (e.g., OpenAI, Azure OpenAI, or local models like Ollama).
-
-It uses natural language understanding, multi source data querying, and reasoning tools to help users explore and analyze structured domain data transparently. While Alfred currently connects to Neo4j, Databricks, and Azure OpenAI, it remains backend agnostic and can integrate other databases, knowledge graphs, or AI engines without changing the core interaction patterns.
-
-## Domain Adoption with Semantic Knowledge Graphs
-
-Alfred helps teams adopt data assistants by making domain knowledge explicit in a semantic graph. Users can:
-
-- Understand domain concepts and their relationships
-- Navigate complex data structures through natural conversation
-- Discover connections and patterns across the knowledge base
+- A **semantic knowledge graph** that makes the domain model and its relationships first-class and navigable.
+- A **persistent, multi-thread chat interface** built on Assistant UI.
+- A **single, well-defined persistence layer** for chat history that can be replaced with your own database.
+- A **pluggable model abstraction layer** that lets you seamlessly switch between providers (e.g., OpenAI, Azure, or local models like Ollama or LM-Studio).
 
 ## Features
 
-- **Agent Skills**: Extend Alfred's capabilites by adding skills to the ```alfred-app/mnt/skills directory```.
+- **Help with your Knowledge Graph**: Generate your first knowledge graph in an UI and adapt it with domain entities
 - **Persistent Multi-Thread Chat** with
 **Pluggable Chat History**: Swap the default SQLite persistence for your own database by re-implementing a small set of functions in `lib/db.ts`
 - **Natural Language Queries**: Ask questions about your data plain language
 - **Tool-based Architecture**: Extensible system for adding custom data tools
 - **Microphone Input (Dictation)** (if supported by the browser) and **Image & File Attachments**
-- **Knowledge Graph Explorer**: Visually explore your semantic knowledge graph and inspect relationships between domain entities
-- **Personalization**: Customize Alfred’s behavior with skills managed in your file explorer or custom instructions set via the settings page
+- **Agent Skills**: Extend Alfred's capabilites by adding skills to the ```alfred-app/mnt/skills directory```.
 
 ## Technology Stack
 
 - **Frontend**: Next.js 16+ with React 19 and Assistant UI for pre-built conversational interface
 - **AI Engine**: Vercel AI SDK using Azure OpenAI
-- **Data Platforms**: Databricks SQL, Neo4j knowledge graphs
+- **Data Platforms**: Databricks SQL, Neo4j knowledge graph
 - **UI**: Radix UI components with Tailwind CSS
 
 ## Prerequisites
@@ -77,47 +54,25 @@ npm install
 The .env file provides Alfred with credentials for chat, embeddings, and databases. Chat and embedding settings should be configured depending on the provider (Azure or OpenAI). Keep this file private and do not commit it to version control. See `.env.example` and create your `.env.local` within the alfred-app directory. Feel free to user the provider of your choice, from azure to ollama (openai compatible).
 
 ```
-# Run Alfred using openai-compatible model, e.g. ollama
+# Run Alfred using openai-compatible model, e.g. ollama, lm-studio,...
 CHAT_PROVIDER=openai
 OPENAI_API_KEY=ollama
-OPENAI_BASE_URL=http://localhost:11434/v1/
-OPENAI_CHAT_MODEL=gpt-oss:20b
+OPENAI_BASE_URL=e.g. http://localhost:11434/v1/
+OPENAI_CHAT_MODEL= e.g. gpt-oss:20b
 
 # Or run Alfred using any azure deployment
 CHAT_PROVIDER=azure
 AZURE_OPENAI_BASE_URL=https://xxxxxxxx.com/openai/
 AZURE_OPENAI_API_VERSION=xxxx-xx-xx
 AZURE_OPENAI_CHAT_DEPLOYMENT=gpt-5.1
+
 ...
-# Embedding provider, Databricks and Neo4j credentials
-```
-
-A second .env file may be necessary for the creation of the neo4j graph from databricks. When the alfred-app is running, those credentials can be added in the settings page. Currently the .env is **limited to Azure** but feel free to adapt it similar to the logic in the alfred application.
-
-```env
-# Azure
-AZURE_OPENAI_API_KEY=your_api_key
-AZURE_OPENAI_BASE_URL=https://.../openai/
-AZURE_API_VERSION=yyyy-MM-dd
-AZURE_OPENAI_EMBEDDING_MODEL=text-embedding-3-large
-AZURE_OPENAI_DEPLOYMENT=gpt-5.1
-
-# Databricks
-DATABRICKS_HOST=your_workspace_url
-DATABRICKS_HTTP_PATH=your_http_path
-DATABRICKS_TOKEN=your_personal_access_token
-DATABRICKS_CATALOG=your_databricks_catalog
-DATABRICKS_SCHEMA=your_databricks_schema
-
-# Neo4j
-NEO4J_BOLT_URL=bolt://...:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=your_password
+# Databricks and Neo4j credentials
 ``` 
 
 ## Getting started from scratch
 
-If you want to try Alfred and you do not have a concrete Databricks dataset nor a knowledge graph, you can start first with the [Databricks Free Edition](https://www.databricks.com/learn/free-edition). From databricks you get your credentials for your ```.env```:
+If you want to try Alfred and you do not have a concrete Databricks dataset nor a knowledge graph, you can start first with the [Databricks Free Edition](https://www.databricks.com/learn/free-edition). Run the script `create_databricks_schema.ipynb` to get your first data into databricks. From databricks you get your credentials for your ```.env```:
 
 ``` bash
 DATABRICKS_HOST=....databricks.com
@@ -129,7 +84,7 @@ DATABRICKS_SCHEMA=your_databricks_schema
 
 Add then to your ```.env``` the (default) credentials for neo4j knowledge graph (the neo4j will be build in the next step):
 
-```
+``` bash
 NEO4J_BOLT_URL=bolt://localhost:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=password
@@ -154,37 +109,8 @@ Next, access the applications:
 - **Neo4j Browser:** [http://localhost:7474](http://localhost:7474)  
 - **Alfred App:** [http://localhost:8081](http://localhost:8081)
 
-Afterwards, there are a couple of helper notebooks in the `scripts/` folder to integrate databricks data in your Free Edition and to build the knowledge graph.
+Finally, go to the settings page, click on **Reset knowledge graph database**. Nodes and edges for your graph will be generated from your choosen database schema. Now your Alfred, add domain infos and start asking questions.
 
-- `scripts/create_databricks_schema.ipynb`
-  - Use this to **initialize a sample dataset in Databricks**.
-  - This notebook is meant to be **run directly in your Databricks workspace** (e.g. imported into Databricks and executed from there), since it relies on Databricks runtime and connectivity.
-
-- `scripts/create_graph_from_databricks.ipynb`
-  - Use this to **build the semantic knowledge graph** from the data stored in Databricks and push it into Neo4j.
-  - This is designed to be **run on your local machine** where it can access your Databricks tables and talk to Neo4j.
-
-Finally, update your `.env.local` for the `alfred-app`and start chatting.
-
-In a typical flow you would:
-1. Get to know the basics of using Neo4j and Databricks.
-2. If you not have any data in databricks, you open `create_databricks_schema.ipynb` in Databricks and run it to set up the sample schema and data.
-3. Configure your Databricks and Neo4j credentials via environment variables as described above.
-3. Open `create_graph_from_databricks.ipynb` on your local machine and run it to materialize the knowledge graph in Neo4j.
-4. Add the `.env.local` in the alfred-app, run the application and start asking questions.
-
-Please note: These notebooks are intentionally simple and are meant as a starting point you can fork and adapt to your own schemas, business concepts, and graph modeling conventions.
-
-The core domain **concepts** used in the example knowledge graph live in `scripts/data/concepts.yaml` (with a big acknowledgement to *Kenneth Leungh* for the original concept definitions). If you want to bring your own domain, you can start by tweaking this file – adding, renaming, or removing concepts – and then re-running the graph creation notebook to see how your changes show up in Neo4j and in Alfred's UI.
-
-## Alfred-App Project Structure
-
-- `app/` - Next.js application and API routes
-- `components/` - React components for UI and assistant-ui interface
-- `mnt/skill` - Agent Skills for Alfred
-- `lib/tools/` - Alfred's tools: View files, Data query tools and utilities for Databricks, SQL, and Neo4j
-- `lib/prompts/` - System prompt(s) for the application
-s
 ## Configuring Databricks and Neo4j Tools
 
 Alfred exposes its main data access paths as **tools** under `lib/tools/`. These tools are wired into the assistant runtime via the Vercel AI SDK and Assistant UI so the model can call them directly.
@@ -215,4 +141,4 @@ We welcome pull requests, suggestions, and discussions about how Alfred can bett
 
 ## Acknowledgement
 
-Alfred grew out of ongoing research on AI-based data assistants. The code in this repository is a personal evening side project. Alfred builds on the work of the open-source community, including Next.js, React, Vercel AI SDK, Neo4j, Databricks, Radix UI, and others.
+Alfred grew out of ongoing research on AI-based data assistants. Alfred builds on the work of the open-source community, including Next.js, React, Vercel AI SDK, Neo4j, Databricks, Radix UI, and others.
