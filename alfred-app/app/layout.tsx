@@ -20,6 +20,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Alfred",
   description: "An open-source AI assistant for research and structured data",
+  icons: {
+    icon: [{ url: "/icon.svg" }],
+    shortcut: "/icon.svg",
+  },
 };
 
 // RootLayoutProps definieren

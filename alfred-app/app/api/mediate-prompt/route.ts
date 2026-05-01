@@ -40,6 +40,41 @@ type MediatePromptRequestBody = {
   prompt?: string;
 };
 
+const STOP_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "by",
+  "for",
+  "from",
+  "how",
+  "in",
+  "is",
+  "me",
+  "of",
+  "on",
+  "or",
+  "show",
+  "the",
+  "to",
+  "with",
+]);
+
+const extractKeywords = (prompt: string) => {
+  const keywords = Array.from(
+    new Set(
+      prompt
+        .toLowerCase()
+        .split(/[^a-z0-9_]+/i)
+        .map((word) => word.trim())
+        .filter((word) => word.length > 2 && !STOP_WORDS.has(word)),
+    ),
+  ).slice(0, 12);
+
+  return keywords.length > 0 ? keywords : [prompt];
+};
+
 export async function POST(req: Request) {
   let body: MediatePromptRequestBody | null = null;
 
@@ -70,7 +105,7 @@ export async function POST(req: Request) {
 
     const neo4jResult = await neo4jTool.execute(
       {
-        search: prompt,
+        keywords: extractKeywords(prompt),
       },
       undefined as any,
     );
