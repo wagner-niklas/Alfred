@@ -3,7 +3,6 @@ import { z } from "zod";
 import { executeDatabricksSQL } from "@/lib/tools/utils_tools";
 
 const DATABRICKS_CATALOG = process.env.DATABRICKS_CATALOG;
-const DATABRICKS_SCHEMA = process.env.DATABRICKS_SCHEMA;
 
 const ensureSelectQuery = (sql: string) => {
   const trimmed = sql.trim();
@@ -60,7 +59,7 @@ const qualifyTables = (sql: string) => {
     /\b(from|join)\s+([`"]?)([a-z0-9_]+)\2\b/gi,
     (match, keyword, quote, table) => {
       if (table.includes(".") || ctes.includes(table.toLowerCase())) return match;
-      return `${keyword} \`${DATABRICKS_CATALOG}\`.\`${DATABRICKS_SCHEMA}\`.${table}`;
+      return `${keyword} \`${DATABRICKS_CATALOG}\`.${table}`;
     }
   );
 };

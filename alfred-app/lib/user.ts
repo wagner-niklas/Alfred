@@ -44,9 +44,13 @@ export function getOrCreateUserId(
 
   // Standard Set-Cookie header; Response.json callers can attach this to
   // ensure the browser stores the id for subsequent requests.
+  // SameSite=None is rejected by browsers on plain HTTP, so use Lax by
+  // default and only add Secure for HTTPS requests.
+  const requestUrl = new URL(req.url);
+  const secureFlag = requestUrl.protocol === "https:" ? "; Secure" : "";
   const setCookieHeader = `${COOKIE_NAME}=${encodeURIComponent(
     userId,
-  )}; Path=/; Max-Age=${ONE_YEAR}; HttpOnly; SameSite=Lax`;
+  )}; Path=/; Max-Age=${ONE_YEAR}; HttpOnly; SameSite=Lax${secureFlag}`;
 
   return { userId, setCookieHeader };
 }

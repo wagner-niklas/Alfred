@@ -14,7 +14,7 @@ import { getOrCreateUserId } from "@/lib/user";
 // shared or global resources.
 
 export async function DELETE(req: Request) {
-  const { userId } = getOrCreateUserId(req);
+  const { userId, setCookieHeader } = getOrCreateUserId(req);
 
   deleteAllUserData(userId);
 
@@ -23,4 +23,4 @@ export async function DELETE(req: Request) {
   // existing id to avoid surprising the caller.
 
   return NextResponse.json({ success: true });
-}
+  }

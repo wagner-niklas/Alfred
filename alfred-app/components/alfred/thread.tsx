@@ -148,14 +148,12 @@ const ThreadWelcome: FC = () => {
     <div className="aui-thread-welcome-root mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col items-center">
       {/* Centered heading block */}
       <div className="aui-thread-welcome-message w-full px-8 text-center">
-        {/* Icon and slogan in one row */}
         <m.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.8 }}
-          className="mb-3 inline-flex items-center gap-3"
+          className="mb-3 inline-flex items-center"
         >
-          <HugeiconsIcon icon={SaturnIcon} className="h-8 w-8 text-primary" />
           <m.h2
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}

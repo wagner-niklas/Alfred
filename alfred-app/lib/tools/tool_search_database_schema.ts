@@ -222,9 +222,13 @@ export const search_database_schema = () =>
 
         const allTablesCypher = `
 MATCH (node:Table)
+WHERE coalesce(node.hidden, false) = false
 OPTIONAL MATCH (node)-[:HAS_COLUMN]->(col:Column)
+WHERE coalesce(col.hidden, false) = false
 OPTIONAL MATCH (col)-[:MAPS_TO_CONCEPT]->(concept:Concept)
+WHERE coalesce(concept.hidden, false) = false
 OPTIONAL MATCH (concept)<-[:MAPS_TO_CONCEPT]-(relatedCol:Column)
+WHERE coalesce(relatedCol.hidden, false) = false
 RETURN 
   node.name AS table_name,
   node.description AS table_description,
@@ -241,7 +245,9 @@ RETURN
   collect(DISTINCT CASE
     WHEN concept.name IS NOT NULL THEN {
       name: concept.name,
-      synonyms: concept.synonyms
+      synonyms: concept.synonyms,
+      sql_expression: concept.sql_expression,
+      type: concept.type
     }
   END) AS concepts,
   collect(DISTINCT CASE 

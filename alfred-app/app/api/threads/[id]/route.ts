@@ -18,7 +18,7 @@ type RouteContext = {
 };
 
 export async function PATCH(req: Request, context: RouteContext) {
-  const { userId } = getOrCreateUserId(req);
+  const { userId, setCookieHeader} = getOrCreateUserId(req);
   const { id } = await context.params;
   const body = await req.json().catch(() => ({}));
   const { title, archived } = body as {

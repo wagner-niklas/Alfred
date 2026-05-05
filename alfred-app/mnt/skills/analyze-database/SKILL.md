@@ -44,9 +44,9 @@ Investigate the semantic knowledge store to reuse existing knowledge whenever po
 If no relevant concepts or patterns exist, proceed by designing a new, clear query plan based on the clarified question.
 
 #### 3. `tool_sql_db_query`
-Execute the planned or adapted SQL query against the database:
+Execute the planned or adapted SQL query against the database catalog.
 
-- Translate the plan into precise SQL using the tables, columns, and filters identified in previous steps.
+- Translate the plan into precise SQL using schema, tables, columns, and filters identified in previous steps.
 - Use safe defaults (for example, reasonable limits) to avoid overly large or unsafe queries.
 - Check that joins, filters, and data types are correct before executing.
 

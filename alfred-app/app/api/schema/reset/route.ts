@@ -49,9 +49,9 @@ export async function POST() {
   try {
     // Step 1: clear Neo4j
     await session.run(`
-      MATCH (t:Table)
-      OPTIONAL MATCH (t)-[:HAS_COLUMN]->(c:Column)
-      DETACH DELETE t, c
+      MATCH (n)
+      WHERE n:Table OR n:Column OR n:Concept
+      DETACH DELETE n
     `);
 
     // Step 2: run query
@@ -128,7 +128,7 @@ export async function POST() {
     const tablesMap = new Map<string, any>();
 
     for (const row of schemaData) {
-      const key = row.table_name;
+      const key = `${row.table_schema}.${row.table_name}`;
 
       if (!tablesMap.has(key)) {
         tablesMap.set(key, {
