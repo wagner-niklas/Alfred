@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/tools/tool_search_database_schema";
 
 const DATABRICKS_HOST = process.env.DATABRICKS_HOST;
 const DATABRICKS_TOKEN = process.env.DATABRICKS_TOKEN;
 const DATABRICKS_WAREHOUSE_ID = process.env.DATABRICKS_WAREHOUSE_ID;
 const DATABRICKS_CATALOG = process.env.DATABRICKS_CATALOG;
-const DATABRICKS_SCHEMA = process.env.DATABRICKS_SCHEMA;
 
 async function fetchStatementResult(statementId: string) {
   const res = await fetch(
@@ -27,7 +25,6 @@ async function fetchStatementResult(statementId: string) {
   return res.json();
 }
 
-// NEW: polling helper
 async function waitForStatement(statementId: string, timeoutMs = 60000) {
   const start = Date.now();
 
@@ -54,13 +51,12 @@ async function waitForStatement(statementId: string, timeoutMs = 60000) {
   }
 }
 
-export async function POST(request: Request) {
+export async function GET() {
   if (
     !DATABRICKS_HOST ||
     !DATABRICKS_TOKEN ||
     !DATABRICKS_WAREHOUSE_ID ||
-    !DATABRICKS_CATALOG ||
-    !DATABRICKS_SCHEMA
+    !DATABRICKS_CATALOG
   ) {
     return NextResponse.json(
       { error: "Missing required Databricks environment variables" },
@@ -68,31 +64,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // Parse selected tables from request body
-  let selectedTables: string[] = [];
   try {
-    const body = await request.json();
-    if (Array.isArray(body.tables)) {
-      selectedTables = body.tables.filter((t: unknown): t is string => typeof t === "string");
-    }
-  } catch {
-    // No body provided, will fetch all tables
-  }
-
-  const session = getSession();
-
-  try {
-    await session.run(`
-      MATCH (n)
-      WHERE n:Table OR n:Column OR n:Concept
-      DETACH DELETE n
-    `);
-
-    // Build WHERE clause for table filtering if tables are selected
-    const tableFilterClause = selectedTables.length > 0
-      ? `AND CONCAT(t.table_schema, '.', t.table_name) IN (${selectedTables.map((t: string) => `'${t}'`).join(", ")})`
-      : "";
-
     const databricksResponse = await fetch(
       `https://${DATABRICKS_HOST}/api/2.0/sql/statements`,
       {
@@ -106,20 +78,12 @@ export async function POST(request: Request) {
             SELECT
               t.table_schema,
               t.table_name,
-              t.comment AS table_description,
-              c.column_name,
-              c.comment AS column_description,
-              c.data_type,
-              c.ordinal_position
+              t.table_type,
+              t.comment AS table_description
             FROM system.information_schema.tables t
-            JOIN system.information_schema.columns c
-              ON t.table_catalog = c.table_catalog
-              AND t.table_schema = c.table_schema
-              AND t.table_name = c.table_name
             WHERE t.table_catalog = '${DATABRICKS_CATALOG}'
-              AND t.table_schema = '${DATABRICKS_SCHEMA}'
-              ${tableFilterClause}
-            ORDER BY t.table_name, c.ordinal_position
+              AND t.table_type = 'MANAGED'
+            ORDER BY t.table_schema, t.table_name
           `,
           warehouse_id: DATABRICKS_WAREHOUSE_ID,
           wait_timeout_ms: 60000,
@@ -138,7 +102,6 @@ export async function POST(request: Request) {
       throw new Error("Missing statement_id in Databricks response");
     }
 
-    // FIX: wait until result is ready
     const resultResponse = await waitForStatement(statementId);
 
     const manifest = resultResponse.manifest;
@@ -165,79 +128,26 @@ export async function POST(request: Request) {
       return obj;
     });
 
-    const tablesMap = new Map<string, any>();
+    // Group tables by schema
+    const tablesBySchema: Record<string, Array<{
+      name: string;
+      description: string | null;
+    }>> = {};
 
     for (const row of schemaData) {
-      const key = `${row.table_schema}.${row.table_name}`;
-
-      if (!tablesMap.has(key)) {
-        tablesMap.set(key, {
-          schema: row.table_schema,
-          description: row.table_description,
-          columns: [],
-        });
+      const schema = row.table_schema as string;
+      if (!tablesBySchema[schema]) {
+        tablesBySchema[schema] = [];
       }
-
-      tablesMap.get(key).columns.push({
-        name: row.column_name,
-        description: row.column_description,
-        data_type: row.data_type,
+      tablesBySchema[schema].push({
+        name: row.table_name as string,
+        description: (row.table_description as string) || null,
       });
     }
 
-    let tablesCreated = 0;
-    let columnsCreated = 0;
-
-    for (const [tableName, tableData] of tablesMap) {
-      await session.run(
-        `
-        MERGE (t:Table {name: $tableName, schema: $schema})
-        SET t.description = $description
-        `,
-        {
-          tableName,
-          schema: tableData.schema,
-          description: tableData.description || null,
-        }
-      );
-
-      tablesCreated++;
-
-      for (const column of tableData.columns) {
-        const columnId = `${tableName}.${column.name}`;
-
-        await session.run(
-          `
-          MERGE (c:Column {name: $columnId})
-          SET c.description = $description,
-              c.data_type = $dataType
-          `,
-          {
-            columnId,
-            description: column.description || null,
-            dataType: column.data_type,
-          }
-        );
-
-        columnsCreated++;
-
-        await session.run(
-          `
-          MATCH (t:Table {name: $tableName})
-          MATCH (c:Column {name: $columnId})
-          MERGE (t)-[:HAS_COLUMN]->(c)
-          `,
-          { tableName, columnId }
-        );
-      }
-    }
-
     return NextResponse.json({
-      message: "Knowledge graph database reset successfully",
       catalog: DATABRICKS_CATALOG,
-      schema: DATABRICKS_SCHEMA,
-      tablesCreated,
-      columnsCreated,
+      schemas: tablesBySchema,
     });
   } catch (err) {
     console.error(err);
@@ -245,7 +155,5 @@ export async function POST(request: Request) {
       { error: err instanceof Error ? err.message : "Unknown error" },
       { status: 500 }
     );
-  } finally {
-    await session.close();
   }
 }

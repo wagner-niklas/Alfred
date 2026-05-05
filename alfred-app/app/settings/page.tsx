@@ -1,10 +1,21 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import type { SettingsResponse } from "@/lib/settings/types";
 import { useSettings } from "@/lib/settings/hooks";
 import { useSearchParams } from "next/navigation";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // Local helper type used while editing settings client-side.
 type DraftSettings = SettingsResponse | null;
@@ -21,6 +32,20 @@ function ensureSettingsBase(
   };
 }
 
+type TableInfo = {
+  name: string;
+  description: string | null;
+};
+
+type SchemaTables = Record<string, TableInfo[]>;
+
+type CatalogResponse = {
+  catalog: string;
+  schemas: SchemaTables;
+};
+
+const MAX_SELECTED_TABLES = 30;
+
 function SettingsPageInner() {
   const searchParams = useSearchParams();
   const userIdFromQuery = searchParams?.get("user_id")?.trim() || null;
@@ -28,10 +53,16 @@ function SettingsPageInner() {
   const [deletingAll, setDeletingAll] = useState(false);
   const [resettingDb, setResettingDb] = useState(false);
 
+  // Table selection dialog state
+  const [showTableSelector, setShowTableSelector] = useState(false);
+  const [catalogData, setCatalogData] = useState<CatalogResponse | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+
   const withBase = (current: DraftSettings): SettingsResponse =>
     ensureSettingsBase(current, data ?? null);
-
-
 
   const handleDeleteAllData = async () => {
     const confirmed = window.confirm(
@@ -59,22 +90,86 @@ function SettingsPageInner() {
     }
   };
 
+  const openTableSelector = async () => {
+    setShowTableSelector(true);
+    setCatalogLoading(true);
+    setCatalogError(null);
+    setSelectedTables(new Set());
+    setSearchQuery("");
+
+    try {
+      const res = await fetch("/api/schema/catalog");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to fetch tables: ${res.status}`);
+      }
+      const data = await res.json();
+      setCatalogData(data);
+    } catch (err) {
+      console.error(err);
+      setCatalogError(err instanceof Error ? err.message : "Failed to fetch tables");
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
+
+  const toggleTable = (tableKey: string) => {
+    setSelectedTables((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(tableKey)) {
+        newSet.delete(tableKey);
+      } else if (newSet.size < MAX_SELECTED_TABLES) {
+        newSet.add(tableKey);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSchema = (schemaName: string) => {
+    setSelectedTables((prev) => {
+      const newSet = new Set(prev);
+      const tablesInSchema = catalogData?.schemas[schemaName] || [];
+      
+      // Check if all tables in schema are selected
+      const allSelected = tablesInSchema.every(
+        (t) => newSet.has(`${schemaName}.${t.name}`)
+      );
+
+      if (allSelected) {
+        // Deselect all tables in schema
+        tablesInSchema.forEach((t) => newSet.delete(`${schemaName}.${t.name}`));
+      } else {
+        // Select all tables in schema (up to limit)
+        tablesInSchema.forEach((t) => {
+          if (newSet.size < MAX_SELECTED_TABLES) {
+            newSet.add(`${schemaName}.${t.name}`);
+          }
+        });
+      }
+      return newSet;
+    });
+  };
+
   const handleResetDatabase = async () => {
-    const confirmed = window.confirm(
-      "Reset the knowledge graph database? This will delete all current table and column nodes and recreate them from the Databricks schema. This cannot be undone.",
-    );
-
-    if (!confirmed) return;
-
     setResettingDb(true);
 
     try {
-      const res = await fetch("/api/schema/reset", { method: "POST" });
+      const res = await fetch("/api/schema/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tables: Array.from(selectedTables) }),
+      });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `Failed to reset database: ${res.status}`);
       }
-      alert("Knowledge graph database has been reset successfully.");
+      const result = await res.json();
+      setShowTableSelector(false);
+      alert(
+        `Knowledge graph database has been reset successfully.\n\n` +
+        `Tables created: ${result.tablesCreated}\n` +
+        `Columns created: ${result.columnsCreated}`
+      );
     } catch (err) {
       console.error(err);
       alert(
@@ -86,6 +181,21 @@ function SettingsPageInner() {
       setResettingDb(false);
     }
   };
+
+  // Filter schemas and tables based on search query
+  const filteredSchemas = catalogData?.schemas
+    ? Object.entries(catalogData.schemas).reduce((acc, [schemaName, tables]) => {
+        const filteredTables = tables.filter(
+          (t) =>
+            t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            t.description?.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+        if (filteredTables.length > 0) {
+          acc[schemaName] = filteredTables;
+        }
+        return acc;
+      }, {} as SchemaTables)
+    : {};
 
   return (
     <>
@@ -141,23 +251,154 @@ function SettingsPageInner() {
                   </p>
                   <p className="text-xs text-warning/80">
                     Delete all table and column nodes from the knowledge graph and
-                    recreate them from the Databricks schema (using DATABRICKS_CATALOG
-                    and DATABRICKS_SCHEMA from .env). This cannot be undone.
+                    recreate them from the Databricks schema. Select which tables to
+                    include (max {MAX_SELECTED_TABLES} tables).
                   </p>
                 </div>
                 <Button
                   type="button"
                   variant="default"
                   size="sm"
-                  onClick={handleResetDatabase}
+                  onClick={openTableSelector}
                   disabled={resettingDb || saving || loading}
                 >
-                  {resettingDb ? "Resetting…" : "Reset database"}
+                  Select tables
                 </Button>
               </div>
             </div>
           </div>
       </main>
+
+      {/* Table Selection Dialog */}
+      <Dialog open={showTableSelector} onOpenChange={setShowTableSelector}>
+        <DialogContent className="max-w-2xl h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Select Tables for Knowledge Graph</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Choose up to {MAX_SELECTED_TABLES} tables to include in the knowledge graph.
+              Tables are grouped by schema.
+            </p>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-hidden flex flex-col gap-4">
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Search tables..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1"
+              />
+              <div className="text-sm text-muted-foreground whitespace-nowrap">
+                {selectedTables.size} / {MAX_SELECTED_TABLES} selected
+              </div>
+            </div>
+
+            {catalogLoading && (
+              <div className="flex-1 flex items-center justify-center">
+                <p className="text-sm text-muted-foreground">Loading tables...</p>
+              </div>
+            )}
+
+            {catalogError && (
+              <div className="flex-1 flex items-center justify-center">
+                <p className="text-sm text-destructive">{catalogError}</p>
+              </div>
+            )}
+
+            {!catalogLoading && !catalogError && filteredSchemas && (
+              <ScrollArea className="flex-1">
+                <div className="space-y-4 pr-4">
+                  {Object.entries(filteredSchemas).map(([schemaName, tables]) => {
+                    const allSelected = tables.every(
+                      (t) => selectedTables.has(`${schemaName}.${t.name}`)
+                    );
+                    const someSelected = tables.some(
+                      (t) => selectedTables.has(`${schemaName}.${t.name}`)
+                    );
+
+                    return (
+                      <div key={schemaName} className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id={`schema-${schemaName}`}
+                            checked={allSelected}
+                            ref={(el: HTMLButtonElement | null) => {
+                              if (el) {
+                                (el as unknown as { indeterminate: boolean }).indeterminate = someSelected && !allSelected;
+                              }
+                            }}
+                            onCheckedChange={() => toggleSchema(schemaName)}
+                            disabled={
+                              selectedTables.size >= MAX_SELECTED_TABLES && !allSelected
+                            }
+                          />
+                          <Label
+                            htmlFor={`schema-${schemaName}`}
+                            className="font-semibold cursor-pointer"
+                          >
+                            {schemaName}
+                          </Label>
+                          <span className="text-xs text-muted-foreground">
+                            ({tables.length} tables)
+                          </span>
+                        </div>
+                        <div className="ml-6 space-y-1">
+                          {tables.map((table) => {
+                            const tableKey = `${schemaName}.${table.name}`;
+                            const isSelected = selectedTables.has(tableKey);
+                            const isDisabled =
+                              !isSelected && selectedTables.size >= MAX_SELECTED_TABLES;
+
+                            return (
+                              <div
+                                key={tableKey}
+                                className="flex items-center gap-2"
+                              >
+                                <Checkbox
+                                  id={`table-${tableKey}`}
+                                  checked={isSelected}
+                                  onCheckedChange={() => toggleTable(tableKey)}
+                                  disabled={isDisabled}
+                                />
+                                <Label
+                                  htmlFor={`table-${tableKey}`}
+                                  className="text-sm cursor-pointer flex-1"
+                                >
+                                  {table.name}
+                                </Label>
+                                {table.description && (
+                                  <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                    {table.description}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowTableSelector(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleResetDatabase}
+              disabled={resettingDb || selectedTables.size === 0}
+            >
+              {resettingDb ? "Resetting..." : `Reset with ${selectedTables.size} tables`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
