@@ -5,14 +5,13 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
+  EarthIcon,
   CopyIcon,
   PencilIcon,
   RepeatIcon,
   Square,
   Search as SearchIcon,
 } from "lucide-react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { SaturnIcon } from "@hugeicons/core-free-icons";
 
 import {
   ActionBarPrimitive,
@@ -610,7 +609,7 @@ const AssistantMessage: FC = () => {
           condition={(s) => s.thread.isRunning && s.thread.messages[s.thread.messages.length - 1]?.id === s.message.id}
         >
           <div className="flex items-center gap-2 text-muted-foreground">
-                <HugeiconsIcon icon={SaturnIcon} className="size-6 animate-pulse text-primary" />
+                <EarthIcon className="size-6 animate-pulse text-primary" />
           </div>
         </AuiIf>
         </div>

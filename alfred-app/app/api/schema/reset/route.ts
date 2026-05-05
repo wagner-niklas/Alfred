@@ -27,6 +27,33 @@ async function fetchStatementResult(statementId: string) {
   return res.json();
 }
 
+// NEW: polling helper
+async function waitForStatement(statementId: string, timeoutMs = 60000) {
+  const start = Date.now();
+
+  while (true) {
+    const result = await fetchStatementResult(statementId);
+
+    const state = result?.status?.state;
+
+    if (state === "SUCCEEDED") {
+      return result;
+    }
+
+    if (state === "FAILED" || state === "CANCELED") {
+      throw new Error(
+        `Databricks statement ${state}: ${JSON.stringify(result?.status)}`
+      );
+    }
+
+    if (Date.now() - start > timeoutMs) {
+      throw new Error("Databricks statement timeout exceeded");
+    }
+
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+}
+
 export async function POST() {
   if (
     !DATABRICKS_HOST ||
@@ -36,10 +63,7 @@ export async function POST() {
     !DATABRICKS_SCHEMA
   ) {
     return NextResponse.json(
-      {
-        error:
-          "Missing required Databricks environment variables",
-      },
+      { error: "Missing required Databricks environment variables" },
       { status: 500 }
     );
   }
@@ -47,14 +71,12 @@ export async function POST() {
   const session = getSession();
 
   try {
-    // Step 1: clear Neo4j
     await session.run(`
       MATCH (n)
       WHERE n:Table OR n:Column OR n:Concept
       DETACH DELETE n
     `);
 
-    // Step 2: run query
     const databricksResponse = await fetch(
       `https://${DATABRICKS_HOST}/api/2.0/sql/statements`,
       {
@@ -95,28 +117,30 @@ export async function POST() {
     const initial = await databricksResponse.json();
 
     const statementId = initial.statement_id;
-
     if (!statementId) {
       throw new Error("Missing statement_id in Databricks response");
     }
 
-    // Step 3: fetch full result
-    const resultResponse = await fetchStatementResult(statementId);
+    // FIX: wait until result is ready
+    const resultResponse = await waitForStatement(statementId);
 
     const manifest = resultResponse.manifest;
     const result = resultResponse.result;
 
-    if (!result?.data_array) {
+    const dataArray =
+      result?.data_array || result?.data?.data_array || null;
+
+    if (!dataArray) {
       throw new Error(
         `Unexpected Databricks result format: ${JSON.stringify(
-          Object.keys(resultResponse)
+          resultResponse?.status
         )}`
       );
     }
 
     const columns = manifest?.schema?.columns || [];
 
-    const schemaData = result.data_array.map((row: unknown[]) => {
+    const schemaData = dataArray.map((row: unknown[]) => {
       const obj: Record<string, unknown> = {};
       columns.forEach((col: any, idx: number) => {
         obj[col.name] = row[idx];
@@ -124,7 +148,6 @@ export async function POST() {
       return obj;
     });
 
-    // Step 4: group by table
     const tablesMap = new Map<string, any>();
 
     for (const row of schemaData) {
