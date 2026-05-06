@@ -39,8 +39,14 @@ export async function POST(req: Request, context: RouteContext) {
     createdAt: string;
   };
 
-  appendMessage(userId, { id, threadId, role, content, createdAt });
-
-  const response = new Response(null, { status: 204 });
-  return response;
+  try {
+    appendMessage(userId, { id, threadId, role, content, createdAt });
+    return new Response(null, { status: 204 });
+  } catch (error) {
+    console.error('Failed to save message:', error);
+    return new Response(
+      JSON.stringify({ error: 'Failed to save message' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 }

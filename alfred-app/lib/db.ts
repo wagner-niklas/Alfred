@@ -356,7 +356,7 @@ export function getMessages(userId: string, threadId: string): MessageRecord[] {
 /**
  * Append (or upsert) a message for a thread owned by the given user.
  *
- * If the thread does not belong to the user, the call is a no-op.
+ * Throws an error if the thread does not exist or does not belong to the user.
  */
 export function appendMessage(
   userId: string,
@@ -367,7 +367,11 @@ export function appendMessage(
     .prepare("SELECT id FROM threads WHERE id = ? AND userId = ?")
     .get(message.threadId, userId);
 
-  if (!thread) return;
+  if (!thread) {
+    throw new Error(
+      `Thread '${message.threadId}' not found for user '${userId}'`
+    );
+  }
 
   db.prepare(
     "INSERT OR REPLACE INTO messages (id, threadId, role, content, createdAt) VALUES (?, ?, ?, ?, ?)",

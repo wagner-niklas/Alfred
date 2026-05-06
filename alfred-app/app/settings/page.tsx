@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 
 // Local helper type used while editing settings client-side.
@@ -271,8 +270,8 @@ function SettingsPageInner() {
 
       {/* Table Selection Dialog */}
       <Dialog open={showTableSelector} onOpenChange={setShowTableSelector}>
-        <DialogContent className="max-w-2xl h-[80vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle>Select Tables for Knowledge Graph</DialogTitle>
             <p className="text-sm text-muted-foreground">
               Choose up to {MAX_SELECTED_TABLES} tables to include in the knowledge graph.
@@ -280,8 +279,8 @@ function SettingsPageInner() {
             </p>
           </DialogHeader>
 
-          <div className="flex-1 overflow-hidden flex flex-col gap-4">
-            <div className="flex items-center gap-2">
+          <div className="flex-1 min-h-0 flex flex-col gap-4 overflow-hidden">
+            <div className="flex items-center gap-2 shrink-0">
               <Input
                 placeholder="Search tables..."
                 value={searchQuery}
@@ -306,8 +305,8 @@ function SettingsPageInner() {
             )}
 
             {!catalogLoading && !catalogError && filteredSchemas && (
-              <ScrollArea className="flex-1">
-                <div className="space-y-4 pr-4">
+              <div className="flex-1 min-h-0 overflow-y-auto rounded-md border">
+                <div className="p-4 space-y-4">
                   {Object.entries(filteredSchemas).map(([schemaName, tables]) => {
                     const allSelected = tables.every(
                       (t) => selectedTables.has(`${schemaName}.${t.name}`)
@@ -379,11 +378,11 @@ function SettingsPageInner() {
                     );
                   })}
                 </div>
-              </ScrollArea>
+              </div>
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button
               variant="outline"
               onClick={() => setShowTableSelector(false)}

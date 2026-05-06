@@ -255,7 +255,7 @@ function ThreadProvider({ children }: { children?: ReactNode }) {
 
             const messageAny = item.message as any;
 
-            await fetch(`/api/threads/${remoteId}/messages`, {
+            const response = await fetch(`/api/threads/${remoteId}/messages`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -272,6 +272,15 @@ function ThreadProvider({ children }: { children?: ReactNode }) {
                   ).toISOString(),
               }),
             });
+
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error(
+                `Failed to save message: ${response.status} ${response.statusText}`,
+                errorText
+              );
+              throw new Error(`Failed to save message: ${response.statusText}`);
+            }
           },
         };
       },
