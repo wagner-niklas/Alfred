@@ -24,6 +24,9 @@ export async function GET(req: Request, context: RouteContext) {
   const { id } = await context.params;
   const messages = getMessages(userId, id);
   const response = Response.json(messages);
+  if (setCookieHeader) {
+    response.headers.set("Set-Cookie", setCookieHeader);
+  }
   return response;
 }
 
@@ -41,7 +44,11 @@ export async function POST(req: Request, context: RouteContext) {
 
   try {
     appendMessage(userId, { id, threadId, role, content, createdAt });
-    return new Response(null, { status: 204 });
+    const response = new Response(null, { status: 204 });
+    if (setCookieHeader) {
+      response.headers.set("Set-Cookie", setCookieHeader);
+    }
+    return response;
   } catch (error) {
     console.error('Failed to save message:', error);
     return new Response(

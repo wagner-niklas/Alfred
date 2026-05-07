@@ -20,6 +20,9 @@ export async function GET(req: Request) {
   const threads = getThreads(userId);
 
   const response = Response.json(threads);
+  if (setCookieHeader) {
+    response.headers.set("Set-Cookie", setCookieHeader);
+  }
   return response;
 }
 
@@ -30,5 +33,8 @@ export async function POST(req: Request) {
 
   const thread = createThread(userId, id, title);
   const response = Response.json(thread);
+  if (setCookieHeader) {
+    response.headers.set("Set-Cookie", setCookieHeader);
+  }
   return response;
 }
