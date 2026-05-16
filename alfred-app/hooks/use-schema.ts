@@ -16,6 +16,7 @@ export type Table = {
   name: string;
   description: string | null;
   columns: Column[];
+  schema?: string; // e.g., "main"
 };
 
 export type ConceptType = "Filter" | "Measure" | "Dimension";
@@ -236,6 +237,11 @@ export function useSchema() {
     }
   }, [load]);
 
+  // Expose the load function for manual refresh (e.g., after database reset)
+  const refresh = useCallback(() => {
+    return load();
+  }, [load]);
+
   return {
     tables,
     concepts,
@@ -248,5 +254,6 @@ export function useSchema() {
     updateConcept,
     deleteConcept,
     deleteTable,
+    refresh,
   };
 }

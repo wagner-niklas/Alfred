@@ -2,13 +2,103 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 
-// Server-side SQLite database setup for thread & message persistence.
-// This file must only be imported from server-side code (e.g. route handlers).
+/**
+ * Server-side SQLite database setup for thread & message persistence.
+ * 
+ * This file must only be imported from server-side code (e.g. route handlers).
+ * Uses WAL journal mode for better concurrency and foreign keys for referential integrity.
+ */
 
-const dbFilePath = path.join(process.cwd(), "data", "alfred.sqlite");
+// Database configuration
+const DATABASE_DIRECTORY = "data";
+const DATABASE_FILENAME = "alfred.sqlite";
+const DEFAULT_USER_ID = "local-dev";
 
-// Ensure the data directory exists
-fs.mkdirSync(path.dirname(dbFilePath), { recursive: true });
+// Table names
+const TABLE_THREADS = "threads";
+const TABLE_MESSAGES = "messages";
+const TABLE_USER_SETTINGS = "user_settings";
+
+// Column defaults
+const DEFAULT_THREAD_TITLE = "Chat";
+
+/**
+ * Builds the absolute path to the SQLite database file.
+ */
+function getDatabaseFilePath(): string {
+  return path.join(process.cwd(), DATABASE_DIRECTORY, DATABASE_FILENAME);
+}
+
+/**
+ * Ensures the database directory exists.
+ */
+function ensureDatabaseDirectory(): void {
+  const dbPath = getDatabaseFilePath();
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+}
+
+/**
+ * Initializes the database schema if tables don't exist.
+ */
+function initializeSchema(database: Database.Database): void {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS ${TABLE_THREADS} (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL DEFAULT '${DEFAULT_USER_ID}',
+      title TEXT NOT NULL DEFAULT '${DEFAULT_THREAD_TITLE}',
+      archived INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS ${TABLE_MESSAGES} (
+      id TEXT PRIMARY KEY,
+      threadId TEXT NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY (threadId) REFERENCES ${TABLE_THREADS}(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS ${TABLE_USER_SETTINGS} (
+      userId TEXT PRIMARY KEY,
+      additional_instructions TEXT,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    );
+  `);
+}
+
+/**
+ * Runs schema migrations for backward compatibility.
+ */
+function runMigrations(database: Database.Database): void {
+  // Add userId column to threads table if missing
+  const threadColumns = database.prepare("PRAGMA table_info(threads)").all() as { name: string }[];
+  const hasUserIdColumn = threadColumns.some((col) => col.name === "userId");
+
+  if (!hasUserIdColumn) {
+    database.exec(
+      `ALTER TABLE ${TABLE_THREADS} ADD COLUMN userId TEXT NOT NULL DEFAULT '${DEFAULT_USER_ID}'`,
+    );
+  }
+
+  // Add additional_instructions column to user_settings table if missing
+  const settingsColumns = database.prepare("PRAGMA table_info(user_settings)").all() as { name: string }[];
+  const hasAdditionalInstructionsColumn = settingsColumns.some(
+    (col) => col.name === "additional_instructions",
+  );
+
+  if (!hasAdditionalInstructionsColumn) {
+    database.exec(
+      `ALTER TABLE ${TABLE_USER_SETTINGS} ADD COLUMN additional_instructions TEXT`,
+    );
+  }
+}
+
+// Initialize database connection
+ensureDatabaseDirectory();
+const dbFilePath = getDatabaseFilePath();
 
 /**
  * Singleton better-sqlite3 connection used by the server to persist
@@ -16,91 +106,36 @@ fs.mkdirSync(path.dirname(dbFilePath), { recursive: true });
  */
 export const db = new Database(dbFilePath);
 
-// Basic pragmas for better concurrency & safety
+// Configure database pragmas for better concurrency & safety
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
-// Initialize schema if it doesn't exist
-db.exec(`
-  CREATE TABLE IF NOT EXISTS threads (
-    id TEXT PRIMARY KEY,
-    userId TEXT NOT NULL DEFAULT 'local-dev',
-    title TEXT NOT NULL DEFAULT 'Chat',
-    archived INTEGER NOT NULL DEFAULT 0,
-    createdAt TEXT NOT NULL,
-    updatedAt TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS messages (
-    id TEXT PRIMARY KEY,
-    threadId TEXT NOT NULL,
-    role TEXT NOT NULL,
-    content TEXT NOT NULL,
-    createdAt TEXT NOT NULL,
-    FOREIGN KEY (threadId) REFERENCES threads(id) ON DELETE CASCADE
-  );
-
-  -- per user config
-  CREATE TABLE IF NOT EXISTS user_settings (
-    userId TEXT PRIMARY KEY,
-    additional_instructions TEXT,
-    createdAt TEXT NOT NULL,
-    updatedAt TEXT NOT NULL
-  );
-`);
-
-// Lightweight migration for older databases that were created before userId
-// existed on the threads table. This is safe to run on every startup.
-const threadColumns = db.prepare("PRAGMA table_info(threads)").all() as {
-  name: string;
-}[];
-const hasUserIdColumn = threadColumns.some((col) => col.name === "userId");
-
-if (!hasUserIdColumn) {
-  db.exec(
-    "ALTER TABLE threads ADD COLUMN userId TEXT NOT NULL DEFAULT 'local-dev'",
-  );
-}
-
-const settingsColumns = db.prepare("PRAGMA table_info(user_settings)").all() as {
-  name: string;
-}[];
-const hasAdditionalInstructionsColumn = settingsColumns.some(
-  (col) => col.name === "additional_instructions",
-);
-
-if (!hasAdditionalInstructionsColumn) {
-  db.exec(
-    "ALTER TABLE user_settings ADD COLUMN additional_instructions TEXT",
-  );
-}
-
+// Type definitions
 export type ThreadRecord = {
   id: string;
   userId: string;
   title: string;
   archived: boolean;
-  createdAt: string; // ISO string
-  updatedAt: string; // ISO string
+  createdAt: string; // ISO date string
+  updatedAt: string; // ISO date string
 };
 
 export type MessageRecord = {
   id: string;
   threadId: string;
   role: "user" | "assistant" | "system";
-  content: unknown; // parsed JSON
-  createdAt: string; // ISO string
+  content: unknown; // Parsed JSON content
+  createdAt: string; // ISO date string
 };
 
 export type UserSettings = {
   userId: string;
   additionalInstructions?: string | null;
-  // Timestamps are stored in the database but optional in the in-memory
-  // representation to keep the type lightweight for most callers.
   createdAt?: string;
   updatedAt?: string;
 };
 
+// Internal row types matching database schema
 type ThreadRow = {
   id: string;
   userId: string;
@@ -124,14 +159,15 @@ type UserSettingsRow = {
 };
 
 /**
- * Fetch decrypted user settings for the given user id.
- *
- * Returns `null` when no settings row exists yet.
+ * Fetches user settings for the given user ID.
+ * 
+ * @param userId - The user ID to fetch settings for
+ * @returns User settings object or null if no settings exist
  */
 export function getUserSettings(userId: string): UserSettings | null {
   const row = db
     .prepare<[string], UserSettingsRow>(
-      "SELECT userId, additional_instructions, createdAt, updatedAt FROM user_settings WHERE userId = ?",
+      `SELECT userId, additional_instructions, createdAt, updatedAt FROM ${TABLE_USER_SETTINGS} WHERE userId = ?`,
     )
     .get(userId);
 
@@ -146,23 +182,19 @@ export function getUserSettings(userId: string): UserSettings | null {
 }
 
 /**
- * Insert or update the settings row for a given user.
- *
- * - Only persists the per-user `additionalInstructions` text alongside
- *   the `userId` and timestamps.
- * - Merges partial updates with any existing row.
+ * Inserts or updates user settings.
+ * 
+ * Merges partial updates with any existing row.
+ * 
+ * @param userId - The user ID to upsert settings for
+ * @param settings - Partial settings to update
+ * @returns The merged user settings
  */
 export function upsertUserSettings(
   userId: string,
-  settings: Partial<
-    Pick<
-      UserSettings,
-      "additionalInstructions"
-    >
-  >,
+  settings: Partial<Pick<UserSettings, "additionalInstructions">>,
 ): UserSettings {
   const existing = getUserSettings(userId);
-
 
   const merged: UserSettings = {
     userId,
@@ -175,7 +207,7 @@ export function upsertUserSettings(
   const now = new Date().toISOString();
 
   db.prepare(
-    `INSERT INTO user_settings (userId, additional_instructions, createdAt, updatedAt)
+    `INSERT INTO ${TABLE_USER_SETTINGS} (userId, additional_instructions, createdAt, updatedAt)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(userId) DO UPDATE SET
        additional_instructions = excluded.additional_instructions,
@@ -183,7 +215,7 @@ export function upsertUserSettings(
   ).run(
     merged.userId,
     merged.additionalInstructions ?? null,
-    existing ? existing.createdAt ?? now : now,
+    existing?.createdAt ?? now,
     now,
   );
 
@@ -191,90 +223,25 @@ export function upsertUserSettings(
 }
 
 /**
- * Return all threads for the given user, ordered by most recently updated.
+ * Retrieves all threads for the given user, ordered by most recently updated.
+ * 
+ * @param userId - The user ID to fetch threads for
+ * @returns Array of thread records
  */
 export function getThreads(userId: string): ThreadRecord[] {
   const rows = db
     .prepare<[string], ThreadRow>(
-      "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE userId = ? ORDER BY updatedAt DESC",
+      `SELECT id, userId, title, archived, createdAt, updatedAt FROM ${TABLE_THREADS} WHERE userId = ? ORDER BY updatedAt DESC`,
     )
     .all(userId);
 
-  return rows.map((row) => ({
-    id: row.id,
-    userId: row.userId,
-    title: row.title,
-    archived: Boolean(row.archived),
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  }));
+  return rows.map(convertThreadRowToRecord);
 }
 
 /**
- * Create a thread for the given user.
- *
- * If an id is provided and an existing legacy thread with that id belongs
- * to the special "local-dev" user, it will be migrated to the new user
- * instead of creating a duplicate row.
+ * Converts a raw database thread row to a ThreadRecord.
  */
-export function createThread(
-  userId: string,
-  id?: string,
-  title?: string,
-): ThreadRecord {
-  const now = new Date().toISOString();
-  const threadId = id ?? crypto.randomUUID();
-  const threadTitle = title?.trim() || "Chat";
-
-  db.prepare(
-    "INSERT OR IGNORE INTO threads (id, userId, title, archived, createdAt, updatedAt) VALUES (?, ?, ?, 0, ?, ?)",
-  ).run(threadId, userId, threadTitle, now, now);
-
-  let row = db
-    .prepare<[string, string], ThreadRow>(
-      "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE id = ? AND userId = ?",
-    )
-    .get(threadId, userId);
-
-  // Backward-compatibility: if a thread with this id exists but is associated
-  // with the legacy 'local-dev' user, migrate it to the current userId.
-  if (!row) {
-    const legacyRow = db
-      .prepare<[string], ThreadRow>(
-        "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE id = ?",
-      )
-      .get(threadId);
-
-    if (legacyRow && legacyRow.userId === "local-dev") {
-      db.prepare(
-        "UPDATE threads SET userId = ? WHERE id = ? AND userId = 'local-dev'",
-      ).run(userId, threadId);
-
-      row = db
-        .prepare<[string, string], ThreadRow>(
-          "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE id = ? AND userId = ?",
-        )
-        .get(threadId, userId);
-    }
-  }
-
-  if (!row) {
-    // As a final fallback, create a fresh row for this id and user.
-    db.prepare(
-      "INSERT OR REPLACE INTO threads (id, userId, title, archived, createdAt, updatedAt) VALUES (?, ?, ?, 0, ?, ?)",
-    ).run(threadId, userId, threadTitle, now, now);
-
-    row = db
-      .prepare<[string, string], ThreadRow>(
-        "SELECT id, userId, title, archived, createdAt, updatedAt FROM threads WHERE id = ? AND userId = ?",
-      )
-      .get(threadId, userId);
-  }
-
-  if (!row) {
-    throw new Error("Failed to create or load thread row");
-  }
-
+function convertThreadRowToRecord(row: ThreadRow): ThreadRecord {
   return {
     id: row.id,
     userId: row.userId,
@@ -286,9 +253,109 @@ export function createThread(
 }
 
 /**
- * Update a thread's title and/or archived flag for a given user.
- *
+ * Creates a new thread for the given user.
+ * 
+ * Supports backward-compatibility: if a thread with the provided ID exists
+ * but belongs to the legacy 'local-dev' user, it will be migrated.
+ * 
+ * @param userId - The user ID to create the thread for
+ * @param id - Optional thread ID (auto-generated if not provided)
+ * @param title - Optional thread title (defaults to "Chat")
+ * @returns The created thread record
+ */
+export function createThread(
+  userId: string,
+  id?: string,
+  title?: string,
+): ThreadRecord {
+  const now = new Date().toISOString();
+  const threadId = id ?? crypto.randomUUID();
+  const threadTitle = title?.trim() || DEFAULT_THREAD_TITLE;
+
+  // Try to insert or ignore
+  db.prepare(
+    `INSERT OR IGNORE INTO ${TABLE_THREADS} (id, userId, title, archived, createdAt, updatedAt) VALUES (?, ?, ?, 0, ?, ?)`,
+  ).run(threadId, userId, threadTitle, now, now);
+
+  // Try to get the thread
+  let row = getThreadRowById(db, threadId, userId);
+
+  // Backward-compatibility: migrate legacy thread if found
+  if (!row) {
+    const legacyRow = getThreadRowByIdLegacy(db, threadId);
+
+    if (legacyRow && legacyRow.userId === DEFAULT_USER_ID) {
+      migrateThreadToUser(db, threadId, userId);
+      row = getThreadRowById(db, threadId, userId);
+    }
+  }
+
+  // Final fallback: create fresh row
+  if (!row) {
+    db.prepare(
+      `INSERT OR REPLACE INTO ${TABLE_THREADS} (id, userId, title, archived, createdAt, updatedAt) VALUES (?, ?, ?, 0, ?, ?)`,
+    ).run(threadId, userId, threadTitle, now, now);
+
+    row = getThreadRowById(db, threadId, userId);
+  }
+
+  if (!row) {
+    throw new Error("Failed to create or load thread row");
+  }
+
+  return convertThreadRowToRecord(row);
+}
+
+/**
+ * Helper to get a thread row by ID and user ID.
+ */
+function getThreadRowById(
+  database: Database.Database,
+  threadId: string,
+  userId: string,
+): ThreadRow | undefined {
+  return db
+    .prepare<[string, string], ThreadRow>(
+      `SELECT id, userId, title, archived, createdAt, updatedAt FROM ${TABLE_THREADS} WHERE id = ? AND userId = ?`,
+    )
+    .get(threadId, userId);
+}
+
+/**
+ * Helper to get a thread row by ID (legacy, without user filter).
+ */
+function getThreadRowByIdLegacy(
+  database: Database.Database,
+  threadId: string,
+): ThreadRow | undefined {
+  return db
+    .prepare<[string], ThreadRow>(
+      `SELECT id, userId, title, archived, createdAt, updatedAt FROM ${TABLE_THREADS} WHERE id = ?`,
+    )
+    .get(threadId);
+}
+
+/**
+ * Migrates a thread to a new user ID.
+ */
+function migrateThreadToUser(
+  database: Database.Database,
+  threadId: string,
+  userId: string,
+): void {
+  db.prepare(
+    `UPDATE ${TABLE_THREADS} SET userId = ? WHERE id = ? AND userId = '${DEFAULT_USER_ID}'`,
+  ).run(userId, threadId);
+}
+
+/**
+ * Updates a thread's title and/or archived flag for the given user.
+ * 
  * A missing row is treated as a no-op.
+ * 
+ * @param userId - The user ID who owns the thread
+ * @param id - The thread ID to update
+ * @param updates - Partial updates to apply
  */
 export function updateThread(
   userId: string,
@@ -298,7 +365,7 @@ export function updateThread(
   const now = new Date().toISOString();
   const existing = db
     .prepare<[string, string], ThreadUpdateRow>(
-      "SELECT id, title, archived FROM threads WHERE id = ? AND userId = ?",
+      `SELECT id, title, archived FROM ${TABLE_THREADS} WHERE id = ? AND userId = ?`,
     )
     .get(id, userId);
 
@@ -306,7 +373,7 @@ export function updateThread(
 
   const title =
     updates.title !== undefined
-      ? updates.title.trim() || "Chat"
+      ? updates.title.trim() || DEFAULT_THREAD_TITLE
       : existing.title;
   const archived =
     updates.archived !== undefined
@@ -314,17 +381,27 @@ export function updateThread(
       : Boolean(existing.archived);
 
   db.prepare(
-    "UPDATE threads SET title = ?, archived = ?, updatedAt = ? WHERE id = ? AND userId = ?",
+    `UPDATE ${TABLE_THREADS} SET title = ?, archived = ?, updatedAt = ? WHERE id = ? AND userId = ?`,
   ).run(title, archived ? 1 : 0, now, id, userId);
 }
 
 /**
- * Delete a single thread and its messages (via ON DELETE CASCADE).
+ * Deletes a thread and its messages (via ON DELETE CASCADE).
+ * 
+ * @param userId - The user ID who owns the thread
+ * @param id - The thread ID to delete
  */
 export function deleteThread(userId: string, id: string): void {
-  db.prepare("DELETE FROM threads WHERE id = ? AND userId = ?").run(id, userId);
+  db.prepare(`DELETE FROM ${TABLE_THREADS} WHERE id = ? AND userId = ?`).run(id, userId);
 }
 
+/**
+ * Retrieves all messages for a thread owned by the given user.
+ * 
+ * @param userId - The user ID who owns the thread
+ * @param threadId - The thread ID to fetch messages for
+ * @returns Array of message records ordered by creation time
+ */
 export function getMessages(userId: string, threadId: string): MessageRecord[] {
   type MessageRow = {
     id: string;
@@ -337,8 +414,8 @@ export function getMessages(userId: string, threadId: string): MessageRecord[] {
   const rows = db
     .prepare<[string, string], MessageRow>(
       `SELECT m.id, m.threadId, m.role, m.content, m.createdAt
-       FROM messages m
-       JOIN threads t ON t.id = m.threadId
+       FROM ${TABLE_MESSAGES} m
+       JOIN ${TABLE_THREADS} t ON t.id = m.threadId
        WHERE m.threadId = ? AND t.userId = ?
        ORDER BY m.createdAt ASC`,
     )
@@ -354,17 +431,20 @@ export function getMessages(userId: string, threadId: string): MessageRecord[] {
 }
 
 /**
- * Append (or upsert) a message for a thread owned by the given user.
- *
+ * Appends (or upserts) a message to a thread owned by the given user.
+ * 
  * Throws an error if the thread does not exist or does not belong to the user.
+ * 
+ * @param userId - The user ID who owns the thread
+ * @param message - The message record to append
  */
 export function appendMessage(
   userId: string,
   message: MessageRecord,
 ): void {
-  // Ensure the thread belongs to the given user before appending
+  // Verify thread ownership before appending
   const thread = db
-    .prepare("SELECT id FROM threads WHERE id = ? AND userId = ?")
+    .prepare(`SELECT id FROM ${TABLE_THREADS} WHERE id = ? AND userId = ?`)
     .get(message.threadId, userId);
 
   if (!thread) {
@@ -374,7 +454,7 @@ export function appendMessage(
   }
 
   db.prepare(
-    "INSERT OR REPLACE INTO messages (id, threadId, role, content, createdAt) VALUES (?, ?, ?, ?, ?)",
+    `INSERT OR REPLACE INTO ${TABLE_MESSAGES} (id, threadId, role, content, createdAt) VALUES (?, ?, ?, ?, ?)`,
   ).run(
     message.id,
     message.threadId,
@@ -383,39 +463,47 @@ export function appendMessage(
     message.createdAt,
   );
 
-  // Touch thread updatedAt when a new message is added
+  // Update thread's updatedAt timestamp
   const now = new Date().toISOString();
   db
-    .prepare("UPDATE threads SET updatedAt = ? WHERE id = ?")
+    .prepare(`UPDATE ${TABLE_THREADS} SET updatedAt = ? WHERE id = ?`)
     .run(now, message.threadId);
 }
 
+/**
+ * Deletes all messages for a thread owned by the given user.
+ * 
+ * @param userId - The user ID who owns the thread
+ * @param threadId - The thread ID to delete messages for
+ */
 export function deleteMessagesByThreadId(
   userId: string,
   threadId: string,
 ): void {
-  // Only delete messages for threads owned by this user
+  // Verify thread ownership before deleting
   const thread = db
-    .prepare("SELECT id FROM threads WHERE id = ? AND userId = ?")
+    .prepare(`SELECT id FROM ${TABLE_THREADS} WHERE id = ? AND userId = ?`)
     .get(threadId, userId);
 
   if (!thread) return;
 
-  db.prepare("DELETE FROM messages WHERE threadId = ?").run(threadId);
+  db.prepare(`DELETE FROM ${TABLE_MESSAGES} WHERE threadId = ?`).run(threadId);
 }
 
-// Danger-zone helper -------------------------------------------------------
-
-// Delete all persisted data for a given user id, including:
-// - all threads owned by the user (and their messages via ON DELETE CASCADE)
-// - the user's settings row.
-//
-// This is intended to be called from a privacy/"delete my data" endpoint and
-// must be used with care.
+/**
+ * Deletes all data for a given user ID.
+ * 
+ * This is a dangerous operation intended only for privacy/"delete my data" endpoints.
+ * Deletes:
+ * - All threads owned by the user (and their messages via ON DELETE CASCADE)
+ * - The user's settings row
+ * 
+ * @param userId - The user ID to delete all data for
+ */
 export function deleteAllUserData(userId: string): void {
   const tx = db.transaction((uid: string) => {
-    db.prepare("DELETE FROM threads WHERE userId = ?").run(uid);
-    db.prepare("DELETE FROM user_settings WHERE userId = ?").run(uid);
+    db.prepare(`DELETE FROM ${TABLE_THREADS} WHERE userId = ?`).run(uid);
+    db.prepare(`DELETE FROM ${TABLE_USER_SETTINGS} WHERE userId = ?`).run(uid);
   });
 
   tx(userId);

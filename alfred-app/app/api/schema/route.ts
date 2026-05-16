@@ -47,10 +47,10 @@ export async function GET() {
   const session = getSession();
 
   try {
-    // Get all tables
+    // Get all tables with their schema
     const tablesQuery = `
       MATCH (t:Table)
-      RETURN t.name AS table_name, t.description AS table_description
+      RETURN t.name AS table_name, t.description AS table_description, t.schema AS table_schema
       ORDER BY t.name
     `;
 
@@ -58,6 +58,7 @@ export async function GET() {
     const tables = tablesResult.records.map((r) => ({
       name: r.get("table_name"),
       description: r.get("table_description"),
+      schema: r.get("table_schema"),
     }));
 
     // Get all columns grouped by table

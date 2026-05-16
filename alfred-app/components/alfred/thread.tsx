@@ -5,7 +5,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
-  EarthIcon,
   CopyIcon,
   PencilIcon,
   RepeatIcon,
@@ -27,7 +26,7 @@ import {
 import type { FC } from "react";
 import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
 import * as m from "motion/react-m";
-
+import "@assistant-ui/react-markdown/styles/dot.css";
 import { Button } from "@/components/ui/button";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { Reasoning, ReasoningGroup } from "@/components/assistant-ui/reasoning";
@@ -41,6 +40,8 @@ import {
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { getThreadMessageTokenUsage } from "@assistant-ui/react-ai-sdk";
+import { useAssistantState } from "@assistant-ui/react";
 
 export const Thread: FC = () => {
   return (
@@ -608,9 +609,7 @@ const AssistantMessage: FC = () => {
           // Show the "thinking" indicator only for the most recent message, and only while it's still generating.
           condition={(s) => s.thread.isRunning && s.thread.messages[s.thread.messages.length - 1]?.id === s.message.id}
         >
-          <div className="flex items-center gap-2 text-muted-foreground">
-                <EarthIcon className="size-6 animate-pulse text-primary" />
-          </div>
+          
         </AuiIf>
         </div>
 
@@ -624,6 +623,30 @@ const AssistantMessage: FC = () => {
 };
 
 const AssistantActionBar: FC = () => {
+  // Get the current message from context - when inside MessagePrimitive.Root,
+  // this gives us the specific message for this component
+  const message = useAssistantState((s) => s.message);
+  
+  // Get token usage from message metadata (populated by Vercel AI SDK onFinish)
+  // The SDK stores usage in metadata.usage, metadata.custom.usage, or metadata.steps
+  const tokenUsage = message ? getThreadMessageTokenUsage(message as any) : undefined;
+  const totalTokens = tokenUsage?.totalTokens;
+  
+  // Get timing info from message metadata
+  // The @assistant-ui/react-ai-sdk stores timing in metadata.messageTiming[messageId]
+  // with properties like: totalStreamTime, firstTokenTime, streamStartTime
+  const messageTiming = (message?.metadata as any)?.messageTiming as Record<string, {
+    totalStreamTime?: number;
+    firstTokenTime?: number;
+    streamStartTime?: number;
+    tokensPerSecond?: number;
+  }> | undefined;
+  
+  const timing = message?.id ? messageTiming?.[message.id] : undefined;
+  const durationSeconds = timing?.totalStreamTime !== undefined 
+    ? (timing.totalStreamTime / 1000).toFixed(1) 
+    : undefined;
+
   return (
     <ActionBarPrimitive.Root
       hideWhenRunning
@@ -631,6 +654,21 @@ const AssistantActionBar: FC = () => {
       autohideFloat="single-branch"
       className="aui-assistant-action-bar-root col-start-3 row-start-2 -ml-1 flex gap-1 text-muted-foreground data-floating:absolute data-floating:rounded-md data-floating:border data-floating:bg-background data-floating:p-1 data-floating:shadow-sm"
     >
+      {/* Token Usage & Time Display */}
+      {(totalTokens !== undefined || durationSeconds !== undefined) && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mr-1 select-none">
+          {totalTokens !== undefined && (
+            <span>{totalTokens.toLocaleString()} tokens</span>
+          )}
+          {totalTokens !== undefined && durationSeconds !== undefined && (
+            <span className="text-muted-foreground/50">|</span>
+          )}
+          {durationSeconds !== undefined && (
+            <span>{durationSeconds}s</span>
+          )}
+        </div>
+      )}
+
       {/* COPY */}
       <ActionBarPrimitive.Copy asChild>
         <TooltipIconButton tooltip="Copy">
