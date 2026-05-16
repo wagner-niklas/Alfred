@@ -4,6 +4,7 @@ import { Starfield } from "@/components/ui/starfield";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AlfredRuntimeProvider } from "@/components/alfred/runtime-provider";
 import { AppSidebar } from "@/components/alfred/app-sidebar";
+import { AuthProvider } from "@/components/auth-provider";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -45,17 +46,19 @@ export default async function RootLayout({ children }: RootLayoutProps) {
           enableSystem
           disableTransitionOnChange
         >
-          <SidebarProvider>
-            <Starfield />
-            <AlfredRuntimeProvider>
-              <div className="relative z-10 flex h-dvh w-full pr-0.5">
-                <AppSidebar />
-                <SidebarInset className="flex flex-1 flex-col overflow-hidden">
-                  {children}
-                </SidebarInset>
-              </div>
-            </AlfredRuntimeProvider>
-          </SidebarProvider>
+          <AuthProvider>
+            <SidebarProvider>
+              <Starfield />
+              <AlfredRuntimeProvider>
+                <div className="relative z-10 flex h-dvh w-full pr-0.5">
+                  <AppSidebar />
+                  <SidebarInset className="flex flex-1 flex-col overflow-hidden">
+                    {children}
+                  </SidebarInset>
+                </div>
+              </AlfredRuntimeProvider>
+            </SidebarProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

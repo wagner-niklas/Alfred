@@ -9,7 +9,7 @@ import {
 import fs from "fs";
 import path from "path";
 import { getTools } from "@/lib/tools/index";
-import { getOrCreateUserId } from "@/lib/user";
+import { isUnauthorizedError, requireAuthenticatedUserId } from "@/lib/user";
 import { getUserSettings } from "@/lib/db";
 import { listSkillSummaries } from "@/lib/skills/utils";
 
@@ -80,7 +80,17 @@ export async function POST(req: Request) {
 
   const skillsSummary = await loadSkillsSummary();
 
-	const { userId, setCookieHeader } = getOrCreateUserId(req);
+	let userId: string;
+
+	try {
+		userId = await requireAuthenticatedUserId();
+	} catch (error) {
+		if (isUnauthorizedError(error)) {
+			return Response.json({ error: "Unauthorized" }, { status: 401 });
+		}
+		throw error;
+	}
+	
 	const userSettings = getUserSettings(userId);
   const additionalInstructions = userSettings?.additionalInstructions ?? null;
 

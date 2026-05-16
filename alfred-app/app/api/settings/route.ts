@@ -1,10 +1,19 @@
 import { NextResponse } from "next/server";
-import { getOrCreateUserId } from "@/lib/user";
+import { isUnauthorizedError, requireAuthenticatedUserId } from "@/lib/user";
 import { UserSettings, getUserSettings, upsertUserSettings } from "@/lib/db";
 import type { SettingsPayload, SettingsResponse } from "@/lib/settings/types";
 
-export async function GET(req: Request) {
-  const { userId, setCookieHeader } = getOrCreateUserId(req);
+export async function GET() {
+  let userId: string;
+
+  try {
+    userId = await requireAuthenticatedUserId();
+  } catch (error) {
+    if (isUnauthorizedError(error)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    throw error;
+  }
 
   const settings = (getUserSettings(userId) ?? { userId }) as UserSettings;
 
@@ -16,7 +25,16 @@ export async function GET(req: Request) {
 }
 
 export async function PUT(req: Request) {
-  const { userId, setCookieHeader } = getOrCreateUserId(req);
+  let userId: string;
+
+  try {
+    userId = await requireAuthenticatedUserId();
+  } catch (error) {
+    if (isUnauthorizedError(error)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    throw error;
+  }
 
   let body: SettingsPayload;
   try {

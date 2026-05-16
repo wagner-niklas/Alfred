@@ -6,12 +6,12 @@
  * - GET  /api/threads/[id]/messages - Returns all messages for a thread
  * - POST /api/threads/[id]/messages - Appends a message to a thread's history
  * 
- * User identity is derived from an anonymous HTTP-only cookie.
+ * User identity is derived from the Better Auth session.
  */
 
 import { NextResponse } from "next/server";
 import { appendMessage, getMessages } from "@/lib/db";
-import { getOrCreateUserId } from "@/lib/user";
+import { isUnauthorizedError, requireAuthenticatedUserId } from "@/lib/user";
 
 // Type definitions
 type RouteContext = {
@@ -63,45 +63,29 @@ function isValidMessageRole(role: unknown): role is MessageRole {
 }
 
 /**
- * Creates a response with the user ID cookie attached if needed.
- */
-function createResponseWithData<T>(data: T, setCookieHeader?: string): NextResponse<T> {
-  const response = NextResponse.json(data);
-  
-  if (setCookieHeader) {
-    response.headers.set("Set-Cookie", setCookieHeader);
-  }
-  
-  return response;
-}
-
-/**
- * Creates an empty response with the user ID cookie attached if needed.
- */
-function createEmptyResponse(setCookieHeader?: string): NextResponse {
-  const response = new NextResponse(null, { status: 204 });
-  
-  if (setCookieHeader) {
-    response.headers.set("Set-Cookie", setCookieHeader);
-  }
-  
-  return response;
-}
-
-/**
  * GET handler - Returns all messages for a thread.
  * 
  * Verifies that the thread belongs to the current user.
  */
 export async function GET(
-  req: Request,
+  _req: Request,
   context: RouteContext
 ): Promise<NextResponse> {
-  const { userId, setCookieHeader } = getOrCreateUserId(req);
+  let userId: string;
+
+  try {
+    userId = await requireAuthenticatedUserId();
+  } catch (error) {
+    if (isUnauthorizedError(error)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    throw error;
+  }
+
   const { id: threadId } = await context.params;
   const messages = getMessages(userId, threadId);
 
-  return createResponseWithData(messages, setCookieHeader);
+  return NextResponse.json(messages);
 }
 
 /**
@@ -113,7 +97,17 @@ export async function POST(
   req: Request,
   context: RouteContext
 ): Promise<NextResponse> {
-  const { userId, setCookieHeader } = getOrCreateUserId(req);
+  let userId: string;
+
+  try {
+    userId = await requireAuthenticatedUserId();
+  } catch (error) {
+    if (isUnauthorizedError(error)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    throw error;
+  }
+
   const { id: threadId } = await context.params;
   
   let message: MessageRequest;
@@ -138,7 +132,7 @@ export async function POST(
       createdAt: message.createdAt,
     });
     
-    return createEmptyResponse(setCookieHeader);
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error(ERROR_MESSAGE_SAVE_FAILED, error);
     

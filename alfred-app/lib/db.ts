@@ -12,7 +12,6 @@ import path from "path";
 // Database configuration
 const DATABASE_DIRECTORY = "data";
 const DATABASE_FILENAME = "alfred.sqlite";
-const DEFAULT_USER_ID = "local-dev";
 
 // Table names
 const TABLE_THREADS = "threads";
@@ -44,7 +43,7 @@ function initializeSchema(database: Database.Database): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS ${TABLE_THREADS} (
       id TEXT PRIMARY KEY,
-      userId TEXT NOT NULL DEFAULT '${DEFAULT_USER_ID}',
+      userId TEXT NOT NULL,
       title TEXT NOT NULL DEFAULT '${DEFAULT_THREAD_TITLE}',
       archived INTEGER NOT NULL DEFAULT 0,
       createdAt TEXT NOT NULL,
@@ -73,16 +72,6 @@ function initializeSchema(database: Database.Database): void {
  * Runs schema migrations for backward compatibility.
  */
 function runMigrations(database: Database.Database): void {
-  // Add userId column to threads table if missing
-  const threadColumns = database.prepare("PRAGMA table_info(threads)").all() as { name: string }[];
-  const hasUserIdColumn = threadColumns.some((col) => col.name === "userId");
-
-  if (!hasUserIdColumn) {
-    database.exec(
-      `ALTER TABLE ${TABLE_THREADS} ADD COLUMN userId TEXT NOT NULL DEFAULT '${DEFAULT_USER_ID}'`,
-    );
-  }
-
   // Add additional_instructions column to user_settings table if missing
   const settingsColumns = database.prepare("PRAGMA table_info(user_settings)").all() as { name: string }[];
   const hasAdditionalInstructionsColumn = settingsColumns.some(
@@ -108,6 +97,8 @@ export const db = new Database(dbFilePath);
 
 // Configure database pragmas for better concurrency & safety
 db.pragma("journal_mode = WAL");
+initializeSchema(db);
+runMigrations(db);
 db.pragma("foreign_keys = ON");
 
 // Type definitions
@@ -157,6 +148,16 @@ type UserSettingsRow = {
   createdAt: string;
   updatedAt: string;
 };
+
+function tableExists(tableName: string): boolean {
+  return Boolean(
+    db
+      .prepare<[string], { name: string }>(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+      )
+      .get(tableName),
+  );
+}
 
 /**
  * Fetches user settings for the given user ID.
@@ -254,10 +255,7 @@ function convertThreadRowToRecord(row: ThreadRow): ThreadRecord {
 
 /**
  * Creates a new thread for the given user.
- * 
- * Supports backward-compatibility: if a thread with the provided ID exists
- * but belongs to the legacy 'local-dev' user, it will be migrated.
- * 
+ *
  * @param userId - The user ID to create the thread for
  * @param id - Optional thread ID (auto-generated if not provided)
  * @param title - Optional thread title (defaults to "Chat")
@@ -279,16 +277,6 @@ export function createThread(
 
   // Try to get the thread
   let row = getThreadRowById(db, threadId, userId);
-
-  // Backward-compatibility: migrate legacy thread if found
-  if (!row) {
-    const legacyRow = getThreadRowByIdLegacy(db, threadId);
-
-    if (legacyRow && legacyRow.userId === DEFAULT_USER_ID) {
-      migrateThreadToUser(db, threadId, userId);
-      row = getThreadRowById(db, threadId, userId);
-    }
-  }
 
   // Final fallback: create fresh row
   if (!row) {
@@ -319,33 +307,6 @@ function getThreadRowById(
       `SELECT id, userId, title, archived, createdAt, updatedAt FROM ${TABLE_THREADS} WHERE id = ? AND userId = ?`,
     )
     .get(threadId, userId);
-}
-
-/**
- * Helper to get a thread row by ID (legacy, without user filter).
- */
-function getThreadRowByIdLegacy(
-  database: Database.Database,
-  threadId: string,
-): ThreadRow | undefined {
-  return db
-    .prepare<[string], ThreadRow>(
-      `SELECT id, userId, title, archived, createdAt, updatedAt FROM ${TABLE_THREADS} WHERE id = ?`,
-    )
-    .get(threadId);
-}
-
-/**
- * Migrates a thread to a new user ID.
- */
-function migrateThreadToUser(
-  database: Database.Database,
-  threadId: string,
-  userId: string,
-): void {
-  db.prepare(
-    `UPDATE ${TABLE_THREADS} SET userId = ? WHERE id = ? AND userId = '${DEFAULT_USER_ID}'`,
-  ).run(userId, threadId);
 }
 
 /**
@@ -504,6 +465,34 @@ export function deleteAllUserData(userId: string): void {
   const tx = db.transaction((uid: string) => {
     db.prepare(`DELETE FROM ${TABLE_THREADS} WHERE userId = ?`).run(uid);
     db.prepare(`DELETE FROM ${TABLE_USER_SETTINGS} WHERE userId = ?`).run(uid);
+  });
+
+  tx(userId);
+}
+
+/**
+ * Deletes all app data plus the Better Auth account for a user.
+ *
+ * Deleting the auth user removes provider accounts and sessions through
+ * Better Auth's SQLite foreign-key cascades; the explicit deletes below keep
+ * the operation correct even if a future schema changes those constraints.
+ */
+export function deleteUserAccountAndData(userId: string): void {
+  const tx = db.transaction((uid: string) => {
+    db.prepare(`DELETE FROM ${TABLE_THREADS} WHERE userId = ?`).run(uid);
+    db.prepare(`DELETE FROM ${TABLE_USER_SETTINGS} WHERE userId = ?`).run(uid);
+
+    if (tableExists("account")) {
+      db.prepare(`DELETE FROM account WHERE userId = ?`).run(uid);
+    }
+
+    if (tableExists("session")) {
+      db.prepare(`DELETE FROM session WHERE userId = ?`).run(uid);
+    }
+
+    if (tableExists("user")) {
+      db.prepare(`DELETE FROM user WHERE id = ?`).run(uid);
+    }
   });
 
   tx(userId);

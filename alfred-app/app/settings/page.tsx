@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import type { SettingsResponse } from "@/lib/settings/types";
 import { useSettings } from "@/lib/settings/hooks";
+import { useSession } from "@/lib/auth-client";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Dialog,
@@ -18,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Mail, Plus, Trash2, User } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -299,6 +300,10 @@ function SettingsPageInner() {
   const router = useRouter();
   const userIdFromQuery = searchParams?.get("user_id")?.trim() || null;
   const { data, loading, saving, error, saved, update, save } = useSettings();
+  const session = useSession();
+  const loggedInUser = session.data?.user;
+  const loggedInUserName = loggedInUser?.name?.trim() || "Signed in user";
+  const loggedInUserEmail = loggedInUser?.email?.trim() || null;
   const { tables, concepts, loading: schemaLoading, error: schemaError, updateTableDescription, updateColumnDescription, toggleColumnHidden, createConcept, updateConcept, deleteConcept, deleteTable, refresh } = useSchema();
   const [deletingAll, setDeletingAll] = useState(false);
   const [resettingDb, setResettingDb] = useState(false);
@@ -680,7 +685,7 @@ function SettingsPageInner() {
 
   const handleDeleteAllData = async () => {
     const confirmed = window.confirm(
-      "Delete all chats and settings for this browser? This cannot be undone.",
+      "Delete your account, sessions, chats, and settings? This cannot be undone.",
     );
 
     if (!confirmed) return;
@@ -690,14 +695,16 @@ function SettingsPageInner() {
     try {
       const res = await fetch("/api/user/delete", { method: "DELETE" });
       if (!res.ok) {
-        throw new Error(`Failed to delete data: ${res.status}`);
+        throw new Error(`Failed to delete account: ${res.status}`);
       }
+      router.replace("/login");
+      router.refresh();
     } catch (err) {
       console.error(err);
       alert(
         err instanceof Error
           ? err.message
-          : "Failed to delete data for this browser.",
+          : "Failed to delete your account.",
       );
     } finally {
       setDeletingAll(false);
@@ -843,12 +850,52 @@ function SettingsPageInner() {
 
             <TabsContent value="general" className="space-y-4">
               <div className="flex flex-col gap-4 border-t pt-6 mt-4">
+                <div className="rounded-md border bg-background px-3 py-3">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-medium">Account</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Current Better Auth session.
+                      </p>
+                    </div>
+                    {session.isPending && (
+                      <span className="text-xs text-muted-foreground">Loading...</span>
+                    )}
+                  </div>
+                  {loggedInUser ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0">
+                          <p className="text-xs text-muted-foreground">Name</p>
+                          <p className="truncate text-sm font-medium">{loggedInUserName}</p>
+                        </div>
+                      </div>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0">
+                          <p className="text-xs text-muted-foreground">Email</p>
+                          <p className="truncate text-sm font-medium">
+                            {loggedInUserEmail ?? "(not set)"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    !session.isPending && (
+                      <p className="text-sm text-muted-foreground">
+                        You are not signed in.
+                      </p>
+                    )
+                  )}
+                </div>
+
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-4">
                     {!saving && !loading && (
                       <p className="text-sm text-muted-foreground">
                         Settings are stored locally in the Alfred SQLite database for
-                        this browser's anonymous user id.
+                        your logged-in account.
                       </p>
                     )}
                   </div>
@@ -866,7 +913,7 @@ function SettingsPageInner() {
                     </p>
                     <p className="text-xs text-destructive/80">
                       Permanently remove all chats and settings linked to this browser's
-                      anonymous user id. This action cannot be undone.
+                      user id, then delete your login account and sign out. This action cannot be undone.
                     </p>
                   </div>
                   <Button
@@ -1014,10 +1061,10 @@ function SettingsPageInner() {
         <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>Select Tables for Knowledge Graph</DialogTitle>
-            <p className="text-sm text-muted-foreground">
+            <DialogDescription>
               Choose up to {MAX_SELECTED_TABLES} tables to include in the knowledge graph.
               Tables are grouped by schema.
-            </p>
+            </DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 min-h-0 flex flex-col gap-4 overflow-hidden">

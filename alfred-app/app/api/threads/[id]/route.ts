@@ -5,20 +5,30 @@
 //
 // - PATCH /api/threads/[id]
 //     * Update title and/or archived flag for the thread belonging to the
-//       current (cookie-scoped) user.
+//       current Better Auth user.
 // - DELETE /api/threads/[id]
 //     * Delete the thread and all of its messages for the current user.
-//       Messages are removed explicitly and also via the DB FK constraint.
+//       Messages are removed explicitly and also via the FK constraint.
 
 import { deleteMessagesByThreadId, deleteThread, updateThread } from "@/lib/db";
-import { getOrCreateUserId } from "@/lib/user";
+import { isUnauthorizedError, requireAuthenticatedUserId } from "@/lib/user";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
 export async function PATCH(req: Request, context: RouteContext) {
-  const { userId, setCookieHeader} = getOrCreateUserId(req);
+  let userId: string;
+
+  try {
+    userId = await requireAuthenticatedUserId();
+  } catch (error) {
+    if (isUnauthorizedError(error)) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    throw error;
+  }
+
   const { id } = await context.params;
   const body = await req.json().catch(() => ({}));
   const { title, archived } = body as {
@@ -34,8 +44,18 @@ export async function PATCH(req: Request, context: RouteContext) {
   return new Response(null, { status: 204 });
 }
 
-export async function DELETE(req: Request, context: RouteContext) {
-  const { userId } = getOrCreateUserId(req);
+export async function DELETE(_req: Request, context: RouteContext) {
+  let userId: string;
+
+  try {
+    userId = await requireAuthenticatedUserId();
+  } catch (error) {
+    if (isUnauthorizedError(error)) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    throw error;
+  }
+
   const { id } = await context.params;
 
   // Delete messages first to be explicit (even though FK has ON DELETE CASCADE)

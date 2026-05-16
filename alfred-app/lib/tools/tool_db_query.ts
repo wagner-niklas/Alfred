@@ -87,7 +87,7 @@ const qualifyTableNames = (sql: string): string => {
       if (table.includes(".") || cteNames.includes(table.toLowerCase())) {
         return match;
       }
-      return `${keyword} \`${DATABRICKS_CATALOG}\`.${table}`;
+      return `${keyword} ${DATABRICKS_CATALOG}.${table}`;
     }
   );
 };
@@ -97,7 +97,7 @@ const qualifyTableNames = (sql: string): string => {
  */
 export const db_query = () =>
   tool({
-    description: "Run a read-only SQL query on the database and returns the results. No queries to the information schema are allowed. Do not use ` or ; only use the tables and columns as they are named in the database.",
+    description: "Run a read-only SQL query within a Databricks catalog and returns the results. No queries to the information schema are allowed. Only use the tables and columns as they are named in the database.",
     inputSchema: z.object({
       sql_query: z.string().describe("The SQL query statement, e.g. SELECT * FROM 01_bronce.order_details LIMIT 5."),
       description: z.string().describe(
