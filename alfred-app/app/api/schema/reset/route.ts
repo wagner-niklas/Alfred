@@ -36,7 +36,7 @@ const ERROR_MISSING_ENV_VARS = "Missing required Databricks environment variable
  */
 async function fetchStatementResult(statementId: string): Promise<unknown> {
   const response = await fetch(
-    `${DATABRICKS_HOST}${DATABRICKS_STATEMENTS_API}/${statementId}`,
+    `https://${DATABRICKS_HOST}${DATABRICKS_STATEMENTS_API}/${statementId}`,
     {
       method: "GET",
       headers: {
