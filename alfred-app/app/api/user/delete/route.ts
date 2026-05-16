@@ -1,26 +1,42 @@
 import { NextResponse } from "next/server";
 
-import { deleteAllUserData } from "@/lib/db";
-import { getOrCreateUserId } from "@/lib/user";
+import { deleteUserAccountAndData } from "@/lib/db";
+import { isUnauthorizedError, requireAuthenticatedUserId } from "@/lib/user";
+
+const AUTH_COOKIE_NAMES = [
+  "better-auth.session_token",
+  "__Secure-better-auth.session_token",
+  "better-auth.session_data",
+  "__Secure-better-auth.session_data",
+  "better-auth.account_data",
+  "__Secure-better-auth.account_data",
+  "better-auth.dont_remember",
+  "__Secure-better-auth.dont_remember",
+];
 
 // DELETE /api/user/delete
 // -----------------------
-// Permanently remove all persisted data associated with the current
-// cookie-scoped user id:
-// - All threads (and their messages via ON DELETE CASCADE)
-// - The user's settings row
-//
-// This endpoint is intentionally narrow in scope and does not affect any
-// shared or global resources.
+// Permanently delete the logged-in Better Auth user plus all app-owned data.
+// This also expires Better Auth cookies so the browser is logged out.
+export async function DELETE() {
+  let userId: string;
 
-export async function DELETE(req: Request) {
-  const { userId } = getOrCreateUserId(req);
+  try {
+    userId = await requireAuthenticatedUserId();
+  } catch (error) {
+    if (isUnauthorizedError(error)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    throw error;
+  }
 
-  deleteAllUserData(userId);
+  deleteUserAccountAndData(userId);
 
-  // Optionally, we could also clear the cookie here to force creation of a
-  // fresh anonymous user id on the next request. For now, we keep the
-  // existing id to avoid surprising the caller.
+  const response = NextResponse.json({ success: true });
 
-  return NextResponse.json({ success: true });
+  for (const cookieName of AUTH_COOKIE_NAMES) {
+    response.cookies.delete(cookieName);
+  }
+
+  return response;
 }

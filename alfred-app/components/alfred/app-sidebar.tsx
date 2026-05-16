@@ -8,9 +8,8 @@ import {
   PlugZap as DatabaseIcon,
   Blocks as SkillsIcon,
   Settings as SettingsIcon,
+  Earth as EarthIcon,
 } from "lucide-react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { SaturnIcon } from "@hugeicons/core-free-icons";
 
 import { ThreadList } from "@/components/alfred/thread-list";
 import {
@@ -48,7 +47,7 @@ export function AppSidebar({ children, ...props }: AppSidebarProps) {
           ) : (
             <>
               <Link href="/alfred" className="aui-sidebar-header-title leading-none pl-1">
-                <HugeiconsIcon icon={SaturnIcon} className="h-6 w-6 text-primary" />
+                <EarthIcon className="h-6 w-6 text-primary" />
               </Link>
               <SidebarTrigger />
             </>

@@ -11,7 +11,7 @@
 //       in SQLite via lib/db, and returns `{ title }`.
 
 import { updateThread } from "@/lib/db";
-import { getOrCreateUserId } from "@/lib/user";
+import { isUnauthorizedError, requireAuthenticatedUserId } from "@/lib/user";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -31,7 +31,17 @@ type TitleSourceMessage = {
 };
 
 export async function POST(req: Request, context: RouteContext) {
-  const { userId, setCookieHeader } = getOrCreateUserId(req);
+  let userId: string;
+
+  try {
+    userId = await requireAuthenticatedUserId();
+  } catch (error) {
+    if (isUnauthorizedError(error)) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    throw error;
+  }
+
   const { id } = await context.params;
   const body = await req.json().catch(() => ({}));
   const { messages } = body as { messages?: TitleSourceMessage[] };
